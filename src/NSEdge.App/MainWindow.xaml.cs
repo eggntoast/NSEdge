@@ -53,7 +53,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Log.Write("Could not change startup entry: " + ex);
-            MessageBox.Show(this, ex.Message, "Windows startup", MessageBoxButton.OK, MessageBoxImage.Warning);
+            System.Windows.MessageBox.Show(this, ex.Message, "Windows startup", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -62,7 +62,7 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
-        if (Application.Current is App { IsExiting: true })
+        if (System.Windows.Application.Current is App { IsExiting: true })
             return;
         e.Cancel = true;
         Hide();

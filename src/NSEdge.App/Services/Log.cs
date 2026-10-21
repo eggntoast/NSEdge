@@ -1,9 +1,10 @@
+using System.IO;
 namespace NSEdge.App.Services;
 
 public static class Log
 {
     private static readonly object Gate = new();
-    private static readonly string Pathname = Path.Combine(
+    private static readonly string Pathname = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NSEdge", "NSEdge.log");
 
     public static string Path => Pathname;

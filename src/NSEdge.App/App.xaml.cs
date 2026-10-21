@@ -60,7 +60,7 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             Log.Write("Startup failed: " + ex);
-            MessageBox.Show(ex.Message, "NSEdge startup error", MessageBoxButton.OK, MessageBoxImage.Error);
+            System.Windows.MessageBox.Show(ex.Message, "NSEdge startup error", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
     }
@@ -113,7 +113,7 @@ public partial class App : System.Windows.Application
     private void ShowDiagnostics()
     {
         EdgeStatus status = monitor?.Current ?? EdgeStatus.Disconnected;
-        MessageBox.Show(
+        System.Windows.MessageBox.Show(
             $"Connected: {status.Connected}\nProfile: {status.Profile}\n" +
             $"Name: {status.Names.DisplayName(status.Profile)}\n" +
             $"Circle: {status.Names.Circle ?? "(not read)"}\n" +
