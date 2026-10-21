@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Drawing;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -56,7 +55,7 @@ public partial class MainWindow : Window
         MaxWidth = Math.Max(320, area.Width - 32);
         Width = Math.Min(514, MaxWidth);
 
-        using Icon? icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
+        using System.Drawing.Icon? icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
         if (icon is not null)
             Icon = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty,
                 System.Windows.Media.Imaging.BitmapSizeOptions.FromWidthAndHeight(16, 16));

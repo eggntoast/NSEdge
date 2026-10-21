@@ -2,14 +2,14 @@
 
 NSEdge is an independent Windows companion for the Sony DualSense Edge controller. It reads the active onboard profile and its saved name, and displays a notification when the profile changes.
 
-The project is in early development (v0.1.2). The initial milestone supports a USB-connected DualSense Edge (Sony VID `054C`, PID `0DF2`); Bluetooth, battery displays, LED control, and gyro control are not implemented.
+The project is in early development (v0.1.3). The initial milestone supports a USB-connected DualSense Edge (Sony VID `054C`, PID `0DF2`); Bluetooth, battery displays, LED control, and gyro control are not implemented.
 
 ## Features
 
 - Detects the Default, Fn + Circle, and Fn + Cross onboard profiles.
 - Reads saved profile names from the controller's HID feature reports.
 - Shows a non-activating desktop notification when the profile changes.
-- Runs from the Windows system tray, with a compact, fixed-size settings window, profile notifications, and diagnostics.
+- Runs from the Windows system tray, with a content-fitted, fixed-size settings window, profile notifications, and diagnostics.
 - Allows notifications to be disabled and Windows sign-in startup to be enabled.
 - Makes no controller configuration changes and sends no HID output reports.
 

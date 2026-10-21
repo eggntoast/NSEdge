@@ -47,8 +47,20 @@ public partial class App : System.Windows.Application
                 if (testIcon is null)
                     throw new InvalidOperationException("The executable icon could not be extracted.");
                 settingsWindow.Show();
-                Log.Write("WPF startup smoke test passed");
-                Shutdown();
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        settingsWindow.AssertNormalLayout();
+                        Log.Write("WPF startup and layout smoke test passed");
+                        Shutdown();
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Write("WPF layout smoke test failed: " + ex);
+                        Shutdown(1);
+                    }
+                }), DispatcherPriority.ApplicationIdle);
                 return;
             }
             applicationIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!)
