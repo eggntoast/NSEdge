@@ -43,6 +43,9 @@ public partial class App : System.Windows.Application
             settingsWindow = new MainWindow(settings, store, ShowCurrent, () => monitor?.RefreshNames());
             if (smokeTest)
             {
+                using Icon? testIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
+                if (testIcon is null)
+                    throw new InvalidOperationException("The executable icon could not be extracted.");
                 settingsWindow.Show();
                 Log.Write("WPF startup smoke test passed");
                 Shutdown();

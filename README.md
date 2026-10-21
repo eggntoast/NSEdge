@@ -2,7 +2,7 @@
 
 NSEdge is an independent Windows companion for the Sony DualSense Edge controller. It reads the active onboard profile and its saved name, and displays a notification when the profile changes.
 
-The project is in early development (v0.1.1). The initial milestone supports a USB-connected DualSense Edge (Sony VID `054C`, PID `0DF2`); Bluetooth, battery displays, LED control, and gyro control are not implemented.
+The project is in early development (v0.1.2). The initial milestone supports a USB-connected DualSense Edge (Sony VID `054C`, PID `0DF2`); Bluetooth, battery displays, LED control, and gyro control are not implemented.
 
 ## Features
 
