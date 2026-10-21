@@ -39,8 +39,8 @@ public partial class MainWindow : Window
         bool connected = status.Connected;
         bool unavailable = !connected && status.Detail.StartsWith("Controller unavailable", StringComparison.Ordinal);
         ConnectionBadgeText.Text = connected ? "Connected" : unavailable ? "Unavailable" : "Searching";
-        StatusDot.Fill = (Brush)FindResource(connected ? "OnlineBrush" : "OfflineBrush");
-        ConnectionBadgeText.Foreground = (Brush)FindResource(connected ? "OnlineBrush" : "SecondaryTextBrush");
+        StatusDot.Fill = (System.Windows.Media.Brush)FindResource(connected ? "OnlineBrush" : "OfflineBrush");
+        ConnectionBadgeText.Foreground = (System.Windows.Media.Brush)FindResource(connected ? "OnlineBrush" : "SecondaryTextBrush");
         ConnectionText.Text = connected ? "DualSense Edge  ·  USB" : status.Detail;
         ProfileText.Text = status.Profile == EdgeProfile.Unknown
             ? connected ? "Waiting for input" : "No active profile"
@@ -81,7 +81,7 @@ public partial class MainWindow : Window
         if (FooterPanel.ActualHeight < 30 || ContentLayout.ActualWidth < 300)
             throw new InvalidOperationException("Settings content has not been measured correctly.");
 
-        Point footerEnd = FooterPanel.TranslatePoint(new Point(0, FooterPanel.ActualHeight), ContentViewport);
+        System.Windows.Point footerEnd = FooterPanel.TranslatePoint(new System.Windows.Point(0, FooterPanel.ActualHeight), ContentViewport);
         if (footerEnd.Y > ContentViewport.ActualHeight + 0.75)
             throw new InvalidOperationException("Settings footer is clipped.");
         if (Icon is null)
