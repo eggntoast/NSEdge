@@ -25,8 +25,6 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="0" Height="44">
@@ -153,49 +151,16 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="PS-button battery popup" Style="{StaticResource SettingLabel}"/>
-                    <TextBlock Text="Display battery status when PS is pressed"
+                    <TextBlock Text="Battery notifications" Style="{StaticResource SettingLabel}"/>
+                    <TextBlock Text="PS popup, low-charge warnings and thresholds"
                                Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
                 </StackPanel>
-                <ToggleButton Grid.Column="1" Name="PsBatteryCheck" Style="{StaticResource SettingToggleStyle}"
-                              AutomationProperties.Name="Show battery popup when PS is pressed"
-                              VerticalAlignment="Center" Checked="SettingChanged" Unchecked="SettingChanged"/>
+                <Button Grid.Column="1" Content="Configure" Style="{StaticResource ActionButtonStyle}"
+                        VerticalAlignment="Center" Click="BatteryOptionsClick"/>
             </Grid>
-            <Grid Grid.Row="13" Height="58">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="Low-battery alerts" Style="{StaticResource SettingLabel}"/>
-                    <TextBlock Text="Notify once per low-battery episode"
-                               Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
-                </StackPanel>
-                <ToggleButton Grid.Column="1" Name="LowBatteryCheck" Style="{StaticResource SettingToggleStyle}"
-                              AutomationProperties.Name="Enable low battery alerts"
-                              VerticalAlignment="Center" Checked="SettingChanged" Unchecked="SettingChanged"/>
-            </Grid>
-            <Grid Grid.Row="14" Height="58">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="Low-battery threshold" Style="{StaticResource SettingLabel}"/>
-                <TextBlock Grid.Column="1" Name="ThresholdText" Text="20%" FontSize="12"
-                           Foreground="{StaticResource SecondaryTextBrush}"/>
-                <Slider Grid.Row="1" Grid.ColumnSpan="2" Name="ThresholdSlider"
-                        Style="{StaticResource DurationSliderStyle}" Margin="2,8,2,0"
-                        Minimum="10" Maximum="50" TickFrequency="10" IsSnapToTickEnabled="True"
-                        Value="20" AutomationProperties.Name="Low battery alert threshold in percent"
-                        ValueChanged="SettingChanged"/>
-            </Grid>
-            <Border Grid.Row="15" Height="1" Background="{StaticResource BorderBrush}" Margin="0,12,0,15"/>
+            <Border Grid.Row="13" Height="1" Background="{StaticResource BorderBrush}" Margin="0,12,0,15"/>
 
-            <Grid x:Name="FooterPanel" Grid.Row="16" MinHeight="36">
+            <Grid x:Name="FooterPanel" Grid.Row="14" MinHeight="36">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>

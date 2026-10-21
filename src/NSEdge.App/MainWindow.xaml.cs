@@ -27,10 +27,6 @@ public partial class MainWindow : Window
         this.showCurrent = showCurrent;
         this.refresh = refresh;
         NotificationsCheck.IsChecked = settings.ShowNotifications;
-        PsBatteryCheck.IsChecked = settings.ShowBatteryOnPs;
-        LowBatteryCheck.IsChecked = settings.ShowLowBatteryAlerts;
-        ThresholdSlider.Value = settings.LowBatteryThresholdPercent;
-        ThresholdText.Text = $"{settings.LowBatteryThresholdPercent}%";
         DurationSlider.Value = settings.NotificationSeconds;
         DurationText.Text = $"{settings.NotificationSeconds:0.0} s";
         try { AutostartCheck.IsChecked = StartupManager.IsEnabled(); }
@@ -115,14 +111,9 @@ public partial class MainWindow : Window
 
     private void SettingChanged(object sender, RoutedEventArgs e)
     {
-        if (initializing || DurationSlider is null || NotificationsCheck is null ||
-            PsBatteryCheck is null || LowBatteryCheck is null || ThresholdSlider is null)
+        if (initializing || DurationSlider is null || NotificationsCheck is null)
             return;
         settings.ShowNotifications = NotificationsCheck.IsChecked == true;
-        settings.ShowBatteryOnPs = PsBatteryCheck.IsChecked == true;
-        settings.ShowLowBatteryAlerts = LowBatteryCheck.IsChecked == true;
-        settings.LowBatteryThresholdPercent = (int)ThresholdSlider.Value;
-        ThresholdText.Text = $"{settings.LowBatteryThresholdPercent}%";
         settings.NotificationSeconds = DurationSlider.Value;
         DurationText.Text = $"{settings.NotificationSeconds:0.0} s";
         store.Save(settings);
@@ -142,6 +133,12 @@ public partial class MainWindow : Window
             finally { restoringAutostart = false; }
             System.Windows.MessageBox.Show(this, ex.Message, "Windows startup", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    private void BatteryOptionsClick(object sender, RoutedEventArgs e)
+    {
+        var window = new BatterySettingsWindow(settings, store) { Owner = this };
+        window.ShowDialog();
     }
 
     private void ShowCurrentClick(object sender, RoutedEventArgs e) => showCurrent();
