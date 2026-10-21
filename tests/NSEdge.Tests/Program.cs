@@ -23,7 +23,9 @@ Test("Debounce stable input", () =>
     for (int i = 0; i < 11; i++) Check(!debounce.Observe(EdgeProfile.Circle));
     Check(debounce.Observe(EdgeProfile.Circle));
     Check(!debounce.Observe(EdgeProfile.Circle));
-    Check(!debounce.Observe(EdgeProfile.Unknown));
+    for (int i = 0; i < 11; i++) Check(!debounce.Observe(EdgeProfile.Unknown));
+    Check(debounce.Observe(EdgeProfile.Unknown));
+    Check(debounce.Current == EdgeProfile.Unknown);
     for (int i = 0; i < 11; i++) Check(!debounce.Observe(EdgeProfile.Cross));
     Check(debounce.Observe(EdgeProfile.Cross));
 });

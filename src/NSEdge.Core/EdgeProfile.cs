@@ -47,13 +47,6 @@ public sealed class ProfileDebouncer(int requiredReports = 12)
 
     public bool Observe(EdgeProfile next)
     {
-        if (next == EdgeProfile.Unknown)
-        {
-            candidate = EdgeProfile.Unknown;
-            consecutive = 0;
-            return false;
-        }
-
         if (candidate != next)
         {
             candidate = next;
