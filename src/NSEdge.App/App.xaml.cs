@@ -57,6 +57,12 @@ public partial class App : System.Windows.Application
                     try
                     {
                         settingsWindow.AssertNormalLayout();
+                        var batterySettingsTest = new BatterySettingsWindow(settings, store) { Owner = settingsWindow };
+                        batterySettingsTest.Show();
+                        batterySettingsTest.UpdateLayout();
+                        if (batterySettingsTest.ActualHeight > SystemParameters.WorkArea.Height - 32)
+                            throw new InvalidOperationException("Battery settings exceeds desktop work area.");
+                        batterySettingsTest.Close();
                         string? preview = Environment.GetEnvironmentVariable("NSEDGE_PREVIEW_PATH");
                         if (!string.IsNullOrWhiteSpace(preview))
                         {
