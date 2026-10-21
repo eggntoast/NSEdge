@@ -5,6 +5,7 @@ namespace NSEdge.Windows.Hid;
 
 public sealed record EdgeStatus(bool Connected, EdgeProfile Profile, ProfileNames Names, long ReportCount, string Detail, EdgeBattery Battery)
 {
+    public byte? BatteryStatusRaw { get; init; }
     public static readonly EdgeStatus Disconnected = new(false, EdgeProfile.Unknown, ProfileNames.Empty, 0, "Waiting for controller", EdgeBattery.Unavailable);
 }
 
@@ -85,6 +86,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
         var debounce = new ProfileDebouncer();
         var psButton = new PsPressDetector();
         EdgeBattery battery = EdgeBattery.Unavailable;
+        byte? batteryStatusRaw = null;
         byte[] buffer = new byte[64];
         long reports = 0;
         Publish(new EdgeStatus(true, EdgeProfile.Unknown, names, reports, "Connected", battery));
@@ -96,7 +98,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
                 if (Interlocked.Exchange(ref refreshRequested, 0) == 1)
                 {
                     names = ReadNames(handle);
-                    Publish(new EdgeStatus(true, debounce.Current, names, reports, "Names refreshed", battery));
+                    Publish(new EdgeStatus(true, debounce.Current, names, reports, "Names refreshed", battery) { BatteryStatusRaw = batteryStatusRaw });
                 }
 
                 int read = await stream.ReadAsync(buffer.AsMemory(), token).ConfigureAwait(false);
@@ -110,6 +112,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
                 bool batteryChanged = false;
                 if (EdgeInputDecoder.TryDecode(buffer.AsSpan(0, read), out EdgeBattery nextBattery, out bool psDown))
                 {
+                    batteryStatusRaw = buffer[53];
                     batteryChanged = battery != nextBattery;
                     battery = nextBattery;
                     if (psButton.Observe(psDown, DateTimeOffset.UtcNow))
@@ -119,7 +122,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
                 var profile = EdgeProfileDecoder.Decode(buffer.AsSpan(0, read));
                 bool profileChanged = debounce.Observe(profile);
                 if (profileChanged || batteryChanged)
-                    Publish(new EdgeStatus(true, debounce.Current, names, reports, "Input active", battery));
+                    Publish(new EdgeStatus(true, debounce.Current, names, reports, "Input active", battery) { BatteryStatusRaw = batteryStatusRaw });
             }
         }
         catch (Exception ex) when (token.IsCancellationRequested && ex is IOException or ObjectDisposedException or OperationCanceledException)

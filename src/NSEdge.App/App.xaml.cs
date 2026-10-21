@@ -205,6 +205,8 @@ public partial class App : System.Windows.Application
             $"Circle: {status.Names.Circle ?? "(not read)"}\n" +
             $"Cross: {status.Names.Cross ?? "(not read)"}\n" +
             $"Square: {status.Names.Square ?? "(not read)"}\n" +
+            $"Battery: {status.Battery.Description}\n" +
+            $"USB battery status byte 53: {(status.BatteryStatusRaw is byte raw ? $"0x{raw:X2}" : "Unavailable")}\n" +
             $"Reports: {status.ReportCount}\nStatus: {status.Detail}\nLog: {Log.Path}",
             "NSEdge diagnostics", MessageBoxButton.OK, MessageBoxImage.Information);
     }
