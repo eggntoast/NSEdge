@@ -26,6 +26,7 @@ public partial class App : System.Windows.Application
 
     private void OnStart(object sender, StartupEventArgs e)
     {
+        bool smokeTest = e.Args.Contains("--smoke-test", StringComparer.Ordinal);
         mutex = new Mutex(initiallyOwned: true, name: @"Local\NSEdge-NS", createdNew: out bool first);
         if (!first)
         {
@@ -40,6 +41,13 @@ public partial class App : System.Windows.Application
             settings = store.Load();
             overlay = new ProfileOverlay();
             settingsWindow = new MainWindow(settings, store, ShowCurrent, () => monitor?.RefreshNames());
+            if (smokeTest)
+            {
+                settingsWindow.Show();
+                Log.Write("WPF startup smoke test passed");
+                Shutdown();
+                return;
+            }
             applicationIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!)
                 ?? throw new InvalidOperationException("The embedded NSEdge icon could not be loaded.");
             tray = new Forms.NotifyIcon
@@ -65,7 +73,8 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             Log.Write("Startup failed: " + ex);
-            System.Windows.MessageBox.Show(ex.Message, "NSEdge startup error", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (!smokeTest)
+                System.Windows.MessageBox.Show(ex.Message, "NSEdge startup error", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
     }

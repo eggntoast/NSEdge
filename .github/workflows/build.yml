@@ -22,6 +22,18 @@ jobs:
         run: dotnet run --project tests/NSEdge.Tests --configuration Release --no-build
       - name: Publish portable Windows executable
         run: dotnet publish src/NSEdge.App/NSEdge.App.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true --output artifacts/NSEdge-win-x64
+      - name: WPF startup smoke test
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'artifacts/NSEdge-win-x64/NSEdge.exe').Path
+          $process = Start-Process -FilePath $exe -ArgumentList '--smoke-test' -PassThru
+          if (-not $process.WaitForExit(20000)) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw 'WPF startup smoke test timed out'
+          }
+          $log = Join-Path $env:LOCALAPPDATA 'NSEdge/NSEdge.log'
+          if (Test-Path $log) { Get-Content $log -Tail 70 }
+          if ($process.ExitCode -ne 0) { throw "WPF startup smoke test failed with exit code $($process.ExitCode)" }
       - name: Separate debugging symbols
         shell: pwsh
         run: |
