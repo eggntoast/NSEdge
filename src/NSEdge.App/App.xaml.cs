@@ -18,6 +18,10 @@ public partial class App : System.Windows.Application
     private string lastError = string.Empty;
     private EdgeMonitor? monitor;
     private ProfileOverlay? overlay;
+    private BatteryOverlay? batteryOverlay;
+    private DispatcherTimer? freshnessTimer;
+    private EdgeBattery lastBattery = EdgeBattery.Unavailable;
+    private readonly LowBatteryPolicy batteryPolicy = new();
     private MainWindow? settingsWindow;
     private AppSettings? settings;
     private readonly SettingsStore store = new();
@@ -40,6 +44,7 @@ public partial class App : System.Windows.Application
         {
             settings = store.Load();
             overlay = new ProfileOverlay();
+            batteryOverlay = new BatteryOverlay();
             settingsWindow = new MainWindow(settings, store, ShowCurrent, () => monitor?.RefreshNames());
             if (smokeTest)
             {
@@ -88,7 +93,15 @@ public partial class App : System.Windows.Application
             tray.MouseDoubleClick += (_, _) => OpenSettings();
             monitor = new EdgeMonitor();
             monitor.Updated += OnMonitorUpdated;
+            monitor.PsPressed += OnPsPressed;
             monitor.Start();
+            freshnessTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            freshnessTimer.Tick += (_, _) =>
+            {
+                if (settingsWindow is not null && monitor is { IsReportFresh: false } && monitor.Current.Connected)
+                    settingsWindow.SetStatus(monitor.Current with { Battery = EdgeBattery.Unavailable });
+            };
+            freshnessTimer.Start();
             Log.Write("NSEdge started: " + typeof(App).Assembly.GetName().Version);
         }
         catch (Exception ex)
@@ -124,6 +137,23 @@ public partial class App : System.Windows.Application
                 !string.Equals(status.Detail, "Waiting for controller", StringComparison.Ordinal))
                 Log.Write("Controller status: " + status.Detail);
             lastError = status.Connected ? string.Empty : status.Detail;
+            if (!status.Connected)
+            {
+                batteryPolicy.Reset();
+                lastBattery = EdgeBattery.Unavailable;
+            }
+            else if (status.Battery != lastBattery)
+            {
+                lastBattery = status.Battery;
+                Log.Write("Battery: " + status.Battery.Description);
+            }
+
+            if (status.Connected && settings?.ShowLowBatteryAlerts == true &&
+                batteryPolicy.Observe(status.Battery, settings.LowBatteryThresholdPercent))
+            {
+                Log.Write("Low battery threshold reached: " + status.Battery.LevelText);
+                batteryOverlay?.Announce(status.Battery, settings.NotificationSeconds, lowWarning: true);
+            }
             if (status.Profile != lastProfile)
             {
                 Log.Write($"Profile: {status.Profile} ({status.Names.DisplayName(status.Profile)}), reports: {status.ReportCount}");
@@ -132,6 +162,17 @@ public partial class App : System.Windows.Application
                     Announce(status);
             }
         }, DispatcherPriority.Background);
+    }
+
+    private void OnPsPressed(EdgeBattery battery)
+    {
+        if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
+            return;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (!IsExiting && settings?.ShowBatteryOnPs == true && monitor?.IsReportFresh == true)
+                batteryOverlay?.Announce(battery, settings.NotificationSeconds);
+        }), DispatcherPriority.Background);
     }
 
     private void Announce(EdgeStatus status) => overlay?.Announce(
@@ -176,10 +217,13 @@ public partial class App : System.Windows.Application
             if (monitor is not null)
             {
                 monitor.Updated -= OnMonitorUpdated;
+                monitor.PsPressed -= OnPsPressed;
                 monitor.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
         }
         catch (Exception ex) { Log.Write("Shutdown error: " + ex); }
+        freshnessTimer?.Stop();
+        batteryOverlay?.Stop();
         overlay?.Stop();
         if (tray is not null)
         {
