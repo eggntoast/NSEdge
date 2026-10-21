@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>NSEdge</AssemblyName>
+    <RootNamespace>NSEdge.App</RootNamespace>
+    <Version>0.1.0</Version>
+    <Authors>NS</Authors>
+    <Copyright>Copyright (c) 2026 NS</Copyright>
+    <Description>DualSense Edge profile monitor</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../NSEdge.Core/NSEdge.Core.csproj" />
+    <ProjectReference Include="../NSEdge.Windows/NSEdge.Windows.csproj" />
+  </ItemGroup>
+</Project>

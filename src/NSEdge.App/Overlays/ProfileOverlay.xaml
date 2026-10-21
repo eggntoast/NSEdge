@@ -1,0 +1,13 @@
+<Window x:Class="NSEdge.App.Overlays.ProfileOverlay"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ShowActivated="False" ShowInTaskbar="False" Topmost="True"
+        ResizeMode="NoResize" Width="410" Height="93">
+    <Border CornerRadius="10" Background="#F018202C" BorderBrush="#374760" BorderThickness="1" Padding="17,12">
+        <StackPanel>
+            <TextBlock Text="DUALSENSE EDGE" Foreground="#94BDF8" FontSize="11" FontWeight="Bold"/>
+            <TextBlock x:Name="ProfileLabel" Foreground="White" FontSize="18" Margin="0,8,0,0" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+    </Border>
+</Window>

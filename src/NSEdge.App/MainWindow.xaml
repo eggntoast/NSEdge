@@ -1,0 +1,33 @@
+<Window x:Class="NSEdge.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="NSEdge" Width="450" Height="390" MinWidth="400" MinHeight="350"
+        WindowStartupLocation="CenterScreen" Background="#141B27" Foreground="#F4F7FC"
+        FontFamily="Segoe UI" Closing="OnClosing">
+    <Grid Margin="25">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock FontSize="25" FontWeight="SemiBold" Text="NSEdge" />
+        <StackPanel Grid.Row="1" Margin="0,8,0,18">
+            <TextBlock Name="ConnectionText" Foreground="#AAB7CA" Text="Waiting for controller" />
+            <TextBlock Name="ProfileText" FontSize="17" Margin="0,5,0,0" Text="No active profile" />
+        </StackPanel>
+        <Separator Grid.Row="2" Background="#37465F"/>
+        <StackPanel Grid.Row="3" Margin="0,18,0,0">
+            <CheckBox Name="NotificationsCheck" Content="Show profile notifications" Checked="SettingChanged" Unchecked="SettingChanged" />
+            <CheckBox Name="AutostartCheck" Content="Launch at Windows sign-in" Margin="0,13,0,0" Checked="AutostartChanged" Unchecked="AutostartChanged" />
+            <TextBlock Margin="0,16,0,4" Text="Notification duration" />
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Slider Name="DurationSlider" Width="290" Minimum="1" Maximum="10" Value="2.5" TickFrequency="0.5" IsSnapToTickEnabled="True" ValueChanged="SettingChanged" />
+                <TextBlock Name="DurationText" Margin="12,0,0,0" VerticalAlignment="Center" Text="2.5 s" />
+            </StackPanel>
+        </StackPanel>
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Click="ShowCurrentClick" Content="Show profile" Padding="13,7" Margin="0,0,8,0"/>
+            <Button Click="RefreshClick" Content="Refresh names" Padding="13,7"/>
+        </StackPanel>
+    </Grid>
+</Window>
