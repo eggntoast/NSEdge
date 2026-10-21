@@ -70,6 +70,70 @@ Test("Name decoder rejects corrupted trailing data", () =>
     first[6 + ("DarkSouls".Length + 1) * 2] = (byte)'X';
     Check(ProfileNameDecoder.Decode(first, second) is null);
 });
+Test("USB battery bands and charging states", () =>
+{
+    Check(EdgeInputDecoder.TryDecode(BatteryReport(0x04), out var low, out _));
+    Check(low == new EdgeBattery(4, EdgeChargeState.Discharging));
+    Check(low.LevelText == "40–49%");
+    Check(EdgeInputDecoder.TryDecode(BatteryReport(0x13), out var charging, out _));
+    Check(charging == new EdgeBattery(3, EdgeChargeState.Charging));
+    Check(EdgeInputDecoder.TryDecode(BatteryReport(0x20), out var full, out _));
+    Check(full == new EdgeBattery(10, EdgeChargeState.Full));
+    Check(EdgeInputDecoder.TryDecode(BatteryReport(0xA5), out var overheat, out _));
+    Check(overheat.Decile is null && overheat.Charge == EdgeChargeState.NotCharging);
+    Check(EdgeInputDecoder.TryDecode(BatteryReport(0xF3), out var failure, out _));
+    Check(failure.Decile is null && failure.Charge == EdgeChargeState.Error);
+});
+Test("Unknown and malformed battery reports do not invent percentages", () =>
+{
+    Check(!EdgeInputDecoder.TryDecode(new byte[53], out var invalid, out _));
+    Check(invalid == EdgeBattery.Unavailable);
+    byte[] wrongId = BatteryReport(0x08);
+    wrongId[0] = 0x31;
+    Check(!EdgeInputDecoder.TryDecode(wrongId, out _, out _));
+    Check(EdgeInputDecoder.TryDecode(BatteryReport(0x0F), out var impossible, out _));
+    Check(impossible == EdgeBattery.Unavailable);
+    Check(EdgeInputDecoder.TryDecode(BatteryReport(0xE8), out var unknownCharge, out _));
+    Check(unknownCharge == EdgeBattery.Unavailable);
+});
+Test("PS button reads USB byte 10 bit zero", () =>
+{
+    byte[] report = BatteryReport(0x03);
+    Check(EdgeInputDecoder.TryDecode(report, out _, out bool pressed) && !pressed);
+    report[10] = 0x01;
+    Check(EdgeInputDecoder.TryDecode(report, out _, out pressed) && pressed);
+    report[10] = 0x02;
+    Check(EdgeInputDecoder.TryDecode(report, out _, out pressed) && !pressed);
+});
+Test("PS press emits one event per valid rise", () =>
+{
+    var detector = new PsPressDetector();
+    var time = DateTimeOffset.UnixEpoch;
+    Check(!detector.Observe(true, time)); // Ignore state already down at startup.
+    Check(!detector.Observe(true, time.AddMilliseconds(25)));
+    Check(!detector.Observe(false, time.AddMilliseconds(50)));
+    Check(detector.Observe(true, time.AddMilliseconds(400)));
+    Check(!detector.Observe(true, time.AddMilliseconds(401)));
+    Check(!detector.Observe(false, time.AddMilliseconds(500)));
+    Check(!detector.Observe(true, time.AddMilliseconds(550))); // Bounce within 300 ms.
+    Check(!detector.Observe(false, time.AddMilliseconds(575)));
+    Check(detector.Observe(true, time.AddMilliseconds(950)));
+});
+Test("Low battery warnings are edge-triggered and discharging only", () =>
+{
+    var policy = new LowBatteryPolicy();
+    var normal = new EdgeBattery(3, EdgeChargeState.Discharging);
+    var low = new EdgeBattery(1, EdgeChargeState.Discharging);
+    Check(!policy.Observe(normal, 20));
+    Check(policy.Observe(low, 20));
+    Check(!policy.Observe(low, 20));
+    Check(!policy.Observe(EdgeBattery.Unavailable, 20));
+    Check(!policy.Observe(low, 20));
+    Check(!policy.Observe(new EdgeBattery(1, EdgeChargeState.Charging), 20));
+    Check(policy.Observe(low, 20));
+    policy.Reset();
+    Check(policy.Observe(low, 20));
+});
 Console.WriteLine($"Passed {passed} protocol tests.");
 
 void Test(string name, Action action)
@@ -108,4 +172,12 @@ static (byte[], byte[]) NameReports(string text, int shift)
         target[offset + 1] = (byte)(text[i] >> 8);
     }
     return (first, second);
+}
+
+static byte[] BatteryReport(byte status)
+{
+    byte[] report = new byte[64];
+    report[0] = 0x01;
+    report[53] = status;
+    return report;
 }
