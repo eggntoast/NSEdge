@@ -1,6 +1,9 @@
 using System.ComponentModel;
+using System.Drawing;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using NSEdge.Core;
 using NSEdge.App.Services;
 using NSEdge.Windows.Hid;
@@ -35,9 +38,10 @@ public partial class MainWindow : Window
     public void SetStatus(EdgeStatus status)
     {
         bool connected = status.Connected;
-        ConnectionBadgeText.Text = connected ? "Connected" : status.Detail.StartsWith("Controller unavailable", StringComparison.Ordinal) ? "Unavailable" : "Searching";
-        StatusDot.Fill = (System.Windows.Media.Brush)FindResource(connected ? "OnlineBrush" : "OfflineBrush");
-        ConnectionBadgeText.Foreground = (System.Windows.Media.Brush)FindResource(connected ? "OnlineBrush" : "SecondaryTextBrush");
+        bool unavailable = !connected && status.Detail.StartsWith("Controller unavailable", StringComparison.Ordinal);
+        ConnectionBadgeText.Text = connected ? "Connected" : unavailable ? "Unavailable" : "Searching";
+        StatusDot.Fill = (Brush)FindResource(connected ? "OnlineBrush" : "OfflineBrush");
+        ConnectionBadgeText.Foreground = (Brush)FindResource(connected ? "OnlineBrush" : "SecondaryTextBrush");
         ConnectionText.Text = connected ? "DualSense Edge  ·  USB" : status.Detail;
         ProfileText.Text = status.Profile == EdgeProfile.Unknown
             ? connected ? "Waiting for input" : "No active profile"
@@ -45,13 +49,44 @@ public partial class MainWindow : Window
         ShortcutText.Text = status.Profile == EdgeProfile.Unknown ? "—" : EdgeProfileDecoder.Shortcut(status.Profile);
     }
 
+    private void OnSourceInitialized(object? sender, EventArgs e)
+    {
+        var area = SystemParameters.WorkArea;
+        MaxHeight = Math.Max(260, area.Height - 32);
+        MaxWidth = Math.Max(320, area.Width - 32);
+        Width = Math.Min(514, MaxWidth);
+
+        using Icon? icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
+        if (icon is not null)
+            Icon = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty,
+                System.Windows.Media.Imaging.BitmapSizeOptions.FromWidthAndHeight(16, 16));
+
+        WindowAppearance.Apply(new WindowInteropHelper(this).Handle);
+    }
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        Rect available = SystemParameters.WorkArea;
-        Width = Math.Min(Width, Math.Max(340, available.Width - 24));
-        Height = Math.Min(Height, Math.Max(320, available.Height - 24));
-        Left = available.Left + (available.Width - Width) / 2;
-        Top = available.Top + (available.Height - Height) / 2;
+        var area = SystemParameters.WorkArea;
+        Left = area.Left + (area.Width - ActualWidth) / 2;
+        Top = area.Top + (area.Height - ActualHeight) / 2;
+    }
+
+    public void AssertNormalLayout()
+    {
+        UpdateLayout();
+        if (ResizeMode != ResizeMode.NoResize || SizeToContent != SizeToContent.Height)
+            throw new InvalidOperationException("Settings window sizing is not fixed to measured content.");
+        if (ContentViewport.ComputedVerticalScrollBarVisibility == Visibility.Visible ||
+            ContentViewport.ScrollableHeight > 0.75)
+            throw new InvalidOperationException($"Unexpected settings scrollbar: {ContentViewport.ScrollableHeight:0.##} DIP.");
+        if (FooterPanel.ActualHeight < 30 || ContentLayout.ActualWidth < 300)
+            throw new InvalidOperationException("Settings content has not been measured correctly.");
+
+        Point footerEnd = FooterPanel.TranslatePoint(new Point(0, FooterPanel.ActualHeight), ContentViewport);
+        if (footerEnd.Y > ContentViewport.ActualHeight + 0.75)
+            throw new InvalidOperationException("Settings footer is clipped.");
+        if (Icon is null)
+            throw new InvalidOperationException("The native application icon was not initialized.");
     }
 
     private void SettingChanged(object sender, RoutedEventArgs e)
