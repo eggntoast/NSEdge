@@ -7,6 +7,9 @@ public sealed class AppSettings
 {
     public bool ShowNotifications { get; set; } = true;
     public double NotificationSeconds { get; set; } = 2.5;
+    public bool ShowBatteryOnPs { get; set; } = true;
+    public bool ShowLowBatteryAlerts { get; set; } = false;
+    public int LowBatteryThresholdPercent { get; set; } = 20;
 }
 
 public sealed class SettingsStore
@@ -26,6 +29,8 @@ public sealed class SettingsStore
                 {
                     settings.NotificationSeconds = double.IsFinite(settings.NotificationSeconds)
                         ? Math.Clamp(settings.NotificationSeconds, 1, 10) : 2.5;
+                    settings.LowBatteryThresholdPercent = Math.Clamp(
+                        (int)Math.Round(settings.LowBatteryThresholdPercent / 10.0) * 10, 10, 50);
                     return settings;
                 }
             }

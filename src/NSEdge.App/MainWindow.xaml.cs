@@ -27,6 +27,10 @@ public partial class MainWindow : Window
         this.showCurrent = showCurrent;
         this.refresh = refresh;
         NotificationsCheck.IsChecked = settings.ShowNotifications;
+        PsBatteryCheck.IsChecked = settings.ShowBatteryOnPs;
+        LowBatteryCheck.IsChecked = settings.ShowLowBatteryAlerts;
+        ThresholdSlider.Value = settings.LowBatteryThresholdPercent;
+        ThresholdText.Text = $"{settings.LowBatteryThresholdPercent}%";
         DurationSlider.Value = settings.NotificationSeconds;
         DurationText.Text = $"{settings.NotificationSeconds:0.0} s";
         try { AutostartCheck.IsChecked = StartupManager.IsEnabled(); }
@@ -47,6 +51,7 @@ public partial class MainWindow : Window
             ? connected ? "Waiting for input" : "No active profile"
             : status.Names.DisplayName(status.Profile);
         ShortcutText.Text = status.Profile == EdgeProfile.Unknown ? "—" : EdgeProfileDecoder.Shortcut(status.Profile);
+        BatteryText.Text = status.Connected ? "Battery: " + status.Battery.Description : "Battery unavailable";
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)
@@ -110,9 +115,14 @@ public partial class MainWindow : Window
 
     private void SettingChanged(object sender, RoutedEventArgs e)
     {
-        if (initializing || DurationSlider is null || NotificationsCheck is null)
+        if (initializing || DurationSlider is null || NotificationsCheck is null ||
+            PsBatteryCheck is null || LowBatteryCheck is null || ThresholdSlider is null)
             return;
         settings.ShowNotifications = NotificationsCheck.IsChecked == true;
+        settings.ShowBatteryOnPs = PsBatteryCheck.IsChecked == true;
+        settings.ShowLowBatteryAlerts = LowBatteryCheck.IsChecked == true;
+        settings.LowBatteryThresholdPercent = (int)ThresholdSlider.Value;
+        ThresholdText.Text = $"{settings.LowBatteryThresholdPercent}%";
         settings.NotificationSeconds = DurationSlider.Value;
         DurationText.Text = $"{settings.NotificationSeconds:0.0} s";
         store.Save(settings);

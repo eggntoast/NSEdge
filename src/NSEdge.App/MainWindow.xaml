@@ -22,6 +22,11 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <Grid Grid.Row="0" Height="44">
@@ -59,7 +64,7 @@
             <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1" CornerRadius="12" Padding="17,15">
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <TextBlock Grid.Row="0" Text="ACTIVE ONBOARD PROFILE" FontSize="10" FontWeight="SemiBold"
                                Foreground="{StaticResource SecondaryTextBrush}"/>
                     <Grid Grid.Row="1" Margin="0,9,0,7">
@@ -79,6 +84,10 @@
                     </Grid>
                     <TextBlock Grid.Row="2" Name="ConnectionText" Text="Searching for DualSense Edge over USB"
                                Style="{StaticResource SecondaryLabel}" TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+                    <TextBlock Grid.Row="3" Name="BatteryText" Text="Battery unavailable"
+                               Style="{StaticResource SecondaryLabel}" Margin="0,5,0,0"
+                               TextTrimming="CharacterEllipsis"
                                ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
                 </Grid>
             </Border>
@@ -136,7 +145,57 @@
 
             <Border Grid.Row="10" Height="1" Background="{StaticResource BorderBrush}" Margin="0,15,0,16"/>
 
-            <Grid x:Name="FooterPanel" Grid.Row="11" MinHeight="36">
+            <TextBlock Grid.Row="11" Text="BATTERY" FontSize="11" FontWeight="SemiBold"
+                       Foreground="{StaticResource SecondaryTextBrush}" Margin="0,7,0,0"/>
+            <Grid Grid.Row="12" Height="58">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="PS-button battery popup" Style="{StaticResource SettingLabel}"/>
+                    <TextBlock Text="Display battery status when PS is pressed"
+                               Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
+                </StackPanel>
+                <ToggleButton Grid.Column="1" Name="PsBatteryCheck" Style="{StaticResource SettingToggleStyle}"
+                              AutomationProperties.Name="Show battery popup when PS is pressed"
+                              VerticalAlignment="Center" Checked="SettingChanged" Unchecked="SettingChanged"/>
+            </Grid>
+            <Grid Grid.Row="13" Height="58">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="Low-battery alerts" Style="{StaticResource SettingLabel}"/>
+                    <TextBlock Text="Notify once per low-battery episode"
+                               Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
+                </StackPanel>
+                <ToggleButton Grid.Column="1" Name="LowBatteryCheck" Style="{StaticResource SettingToggleStyle}"
+                              AutomationProperties.Name="Enable low battery alerts"
+                              VerticalAlignment="Center" Checked="SettingChanged" Unchecked="SettingChanged"/>
+            </Grid>
+            <Grid Grid.Row="14" Height="58">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Low-battery threshold" Style="{StaticResource SettingLabel}"/>
+                <TextBlock Grid.Column="1" Name="ThresholdText" Text="20%" FontSize="12"
+                           Foreground="{StaticResource SecondaryTextBrush}"/>
+                <Slider Grid.Row="1" Grid.ColumnSpan="2" Name="ThresholdSlider"
+                        Style="{StaticResource DurationSliderStyle}" Margin="2,8,2,0"
+                        Minimum="10" Maximum="50" TickFrequency="10" IsSnapToTickEnabled="True"
+                        Value="20" AutomationProperties.Name="Low battery alert threshold in percent"
+                        ValueChanged="SettingChanged"/>
+            </Grid>
+            <Border Grid.Row="15" Height="1" Background="{StaticResource BorderBrush}" Margin="0,12,0,15"/>
+
+            <Grid x:Name="FooterPanel" Grid.Row="16" MinHeight="36">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
