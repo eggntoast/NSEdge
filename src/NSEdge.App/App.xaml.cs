@@ -52,6 +52,12 @@ public partial class App : System.Windows.Application
                     try
                     {
                         settingsWindow.AssertNormalLayout();
+                        string? preview = Environment.GetEnvironmentVariable("NSEDGE_PREVIEW_PATH");
+                        if (!string.IsNullOrWhiteSpace(preview))
+                        {
+                            settingsWindow.SavePreview(preview);
+                            Log.Write("WPF preview saved: " + preview);
+                        }
                         Log.Write("WPF startup and layout smoke test passed");
                         Shutdown();
                     }

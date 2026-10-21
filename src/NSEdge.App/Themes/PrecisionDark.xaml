@@ -108,6 +108,8 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Slider">
                     <Grid Height="26" SnapsToDevicePixels="True">
+                        <Border x:Name="FocusOutline" Background="Transparent" CornerRadius="7"
+                                BorderThickness="1" BorderBrush="Transparent"/>
                         <Track x:Name="PART_Track" VerticalAlignment="Center">
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
@@ -140,6 +142,9 @@
                         </Track>
                     </Grid>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="FocusOutline" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                        </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45"/>
                         </Trigger>

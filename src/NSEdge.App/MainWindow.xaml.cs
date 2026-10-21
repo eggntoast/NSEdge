@@ -70,6 +70,25 @@ public partial class MainWindow : Window
         Top = area.Top + (area.Height - ActualHeight) / 2;
     }
 
+    public void SavePreview(string path)
+    {
+        UpdateLayout();
+        var dpi = VisualTreeHelper.GetDpi(ContentViewport);
+        int width = (int)Math.Ceiling(ContentViewport.ActualWidth * dpi.DpiScaleX);
+        int height = (int)Math.Ceiling(ContentViewport.ActualHeight * dpi.DpiScaleY);
+        if (width < 300 || height < 250)
+            throw new InvalidOperationException("Invalid measured size for the WPF preview.");
+
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+            width, height, 96 * dpi.DpiScaleX, 96 * dpi.DpiScaleY, PixelFormats.Pbgra32);
+        bitmap.Render(ContentViewport);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        using var output = File.Create(path);
+        encoder.Save(output);
+    }
+
     public void AssertNormalLayout()
     {
         UpdateLayout();
