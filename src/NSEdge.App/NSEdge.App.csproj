@@ -8,12 +8,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>NSEdge</AssemblyName>
     <RootNamespace>NSEdge.App</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Authors>NS</Authors>
     <Copyright>Copyright (c) 2026 NS</Copyright>
     <Description>DualSense Edge profile monitor</Description>
+    <ApplicationIcon>Assets\NSEdge.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <Resource Include="Assets\NSEdge.ico" />
     <ProjectReference Include="../NSEdge.Core/NSEdge.Core.csproj" />
     <ProjectReference Include="../NSEdge.Windows/NSEdge.Windows.csproj" />
   </ItemGroup>

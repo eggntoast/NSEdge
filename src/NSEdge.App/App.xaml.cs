@@ -13,6 +13,9 @@ public partial class App : System.Windows.Application
 {
     private Mutex? mutex;
     private Forms.NotifyIcon? tray;
+    private Icon? applicationIcon;
+    private bool lastConnected;
+    private string lastError = string.Empty;
     private EdgeMonitor? monitor;
     private ProfileOverlay? overlay;
     private MainWindow? settingsWindow;
@@ -37,9 +40,11 @@ public partial class App : System.Windows.Application
             settings = store.Load();
             overlay = new ProfileOverlay();
             settingsWindow = new MainWindow(settings, store, ShowCurrent, () => monitor?.RefreshNames());
+            applicationIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!)
+                ?? throw new InvalidOperationException("The embedded NSEdge icon could not be loaded.");
             tray = new Forms.NotifyIcon
             {
-                Icon = SystemIcons.Information,
+                Icon = applicationIcon,
                 Visible = true,
                 Text = "NSEdge: waiting for controller"
             };
@@ -55,7 +60,7 @@ public partial class App : System.Windows.Application
             monitor = new EdgeMonitor();
             monitor.Updated += OnMonitorUpdated;
             monitor.Start();
-            Log.Write("NSEdge started");
+            Log.Write("NSEdge started: " + typeof(App).Assembly.GetName().Version);
         }
         catch (Exception ex)
         {
@@ -80,8 +85,18 @@ public partial class App : System.Windows.Application
                 string caption = "NSEdge: " + label;
                 tray.Text = caption[..Math.Min(caption.Length, 63)];
             }
+            if (status.Connected != lastConnected)
+            {
+                lastConnected = status.Connected;
+                Log.Write(status.Connected ? "DualSense Edge connected over USB" : "DualSense Edge disconnected");
+            }
+            if (!status.Connected && status.Detail != lastError &&
+                !string.Equals(status.Detail, "Waiting for controller", StringComparison.Ordinal))
+                Log.Write("Controller status: " + status.Detail);
+            lastError = status.Connected ? string.Empty : status.Detail;
             if (status.Profile != lastProfile)
             {
+                Log.Write($"Profile: {status.Profile} ({status.Names.DisplayName(status.Profile)}), reports: {status.ReportCount}");
                 lastProfile = status.Profile;
                 if (status.Profile != EdgeProfile.Unknown && settings?.ShowNotifications == true)
                     Announce(status);
@@ -141,6 +156,7 @@ public partial class App : System.Windows.Application
             tray.Visible = false;
             tray.Dispose();
         }
+        applicationIcon?.Dispose();
         mutex?.ReleaseMutex();
         mutex?.Dispose();
         Log.Write("NSEdge stopped");

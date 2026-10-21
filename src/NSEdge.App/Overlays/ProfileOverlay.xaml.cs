@@ -41,5 +41,9 @@ public partial class ProfileOverlay : Window
         timer.Start();
     }
 
-    public void Stop() => timer.Stop();
+    public void Stop()
+    {
+        timer.Stop();
+        Hide();
+    }
 }

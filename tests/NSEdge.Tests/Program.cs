@@ -56,6 +56,20 @@ Test("Display name fallback", () =>
     Check(names.DisplayName(EdgeProfile.Cross) == "Silent Hill");
     Check(ProfileNames.Empty.DisplayName(EdgeProfile.Circle) == "Custom 1");
 });
+Test("Repeated reports do not retrigger a notification", () =>
+{
+    var debounce = new ProfileDebouncer();
+    for (int i = 0; i < 12; i++) debounce.Observe(EdgeProfile.Default);
+    for (int i = 0; i < 200; i++) Check(!debounce.Observe(EdgeProfile.Default));
+    for (int i = 0; i < 11; i++) Check(!debounce.Observe(EdgeProfile.Circle));
+    Check(debounce.Observe(EdgeProfile.Circle));
+});
+Test("Name decoder rejects corrupted trailing data", () =>
+{
+    var (first, second) = NameReports("DarkSouls", 0);
+    first[6 + ("DarkSouls".Length + 1) * 2] = (byte)'X';
+    Check(ProfileNameDecoder.Decode(first, second) is null);
+});
 Console.WriteLine($"Passed {passed} protocol tests.");
 
 void Test(string name, Action action)

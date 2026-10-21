@@ -24,7 +24,8 @@ public sealed class SettingsStore
                 var settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(path), JsonOptions);
                 if (settings is not null)
                 {
-                    settings.NotificationSeconds = Math.Clamp(settings.NotificationSeconds, 1, 10);
+                    settings.NotificationSeconds = double.IsFinite(settings.NotificationSeconds)
+                        ? Math.Clamp(settings.NotificationSeconds, 1, 10) : 2.5;
                     return settings;
                 }
             }

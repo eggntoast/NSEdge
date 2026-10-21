@@ -22,8 +22,22 @@ jobs:
         run: dotnet run --project tests/NSEdge.Tests --configuration Release --no-build
       - name: Publish portable Windows executable
         run: dotnet publish src/NSEdge.App/NSEdge.App.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true --output artifacts/NSEdge-win-x64
+      - name: Separate debugging symbols
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/NSEdge-symbols | Out-Null
+          Get-ChildItem artifacts/NSEdge-win-x64 -Filter *.pdb |
+            Move-Item -Destination artifacts/NSEdge-symbols
+          if (-not (Test-Path artifacts/NSEdge-win-x64/NSEdge.exe)) {
+            throw "Published executable missing"
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: NSEdge-win-x64
           path: artifacts/NSEdge-win-x64/
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NSEdge-symbols
+          path: artifacts/NSEdge-symbols/
+          if-no-files-found: warn

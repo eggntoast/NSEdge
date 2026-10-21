@@ -2,14 +2,14 @@
 
 NSEdge is an independent Windows companion for the Sony DualSense Edge controller. It reads the active onboard profile and its saved name, and displays a notification when the profile changes.
 
-The project is in early development. The initial milestone supports a USB-connected DualSense Edge (Sony VID `054C`, PID `0DF2`); Bluetooth, battery displays, LED control, and gyro control are not implemented.
+The project is in early development (v0.1.1). The initial milestone supports a USB-connected DualSense Edge (Sony VID `054C`, PID `0DF2`); Bluetooth, battery displays, LED control, and gyro control are not implemented.
 
 ## Features
 
 - Detects the Default, Fn + Circle, and Fn + Cross onboard profiles.
 - Reads saved profile names from the controller's HID feature reports.
 - Shows a non-activating desktop notification when the profile changes.
-- Runs from the Windows system tray, with settings and diagnostics.
+- Runs from the Windows system tray, with a compact, fixed-size settings window, profile notifications, and diagnostics.
 - Allows notifications to be disabled and Windows sign-in startup to be enabled.
 - Makes no controller configuration changes and sends no HID output reports.
 
@@ -20,7 +20,7 @@ NSEdge does not replace DS4Windows. It can monitor a controller that DS4Windows 
 - Windows 11 x64
 - Sony DualSense Edge connected by USB
 
-The published self-contained build includes the required .NET runtime. To build from source, install the .NET 10 SDK with Windows desktop tooling.
+GitHub Actions provides an unsigned self-contained development build that includes the required .NET runtime. It may trigger a Windows SmartScreen warning; only run a build whose source and provenance you trust. To build from source, install the .NET 10 SDK with Windows desktop tooling.
 
 ## Build and run
 
@@ -43,7 +43,9 @@ dotnet publish src/NSEdge.App -c Release -r win-x64 --self-contained true -p:Pub
 
 After launch, double-click the tray icon to open NSEdge. The tray menu provides profile status, name refresh, diagnostics, and Exit. Closing the settings window keeps the monitor running; Exit stops it.
 
-Settings and the log are stored under `%LOCALAPPDATA%\NSEdge`.
+Settings and the log are stored under `%LOCALAPPDATA%\NSEdge`. Downloaded development artifacts under the local `zips/` folder are ignored by Git.
+
+For the prebuilt application, download the `NSEdge-win-x64` artifact from a successful [Actions run](https://github.com/eggntoast/NSEdge/actions). Debug symbols are provided separately as `NSEdge-symbols`. No official release or signing certificate has been published.
 
 ## Current limitations
 
