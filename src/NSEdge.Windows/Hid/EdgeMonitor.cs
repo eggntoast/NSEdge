@@ -3,9 +3,9 @@ using NSEdge.Core;
 
 namespace NSEdge.Windows.Hid;
 
-public sealed record EdgeStatus(bool Connected, EdgeProfile Profile, ProfileNames Names, long ReportCount, string Detail)
+public sealed record EdgeStatus(bool Connected, EdgeProfile Profile, ProfileNames Names, long ReportCount, string Detail, EdgeBattery Battery)
 {
-    public static readonly EdgeStatus Disconnected = new(false, EdgeProfile.Unknown, ProfileNames.Empty, 0, "Waiting for controller");
+    public static readonly EdgeStatus Disconnected = new(false, EdgeProfile.Unknown, ProfileNames.Empty, 0, "Waiting for controller", EdgeBattery.Unavailable);
 }
 
 public sealed class EdgeMonitor : IAsyncDisposable
@@ -14,8 +14,11 @@ public sealed class EdgeMonitor : IAsyncDisposable
     private Task? worker;
     private int refreshRequested;
     private EdgeStatus current = EdgeStatus.Disconnected;
+    private long lastReportTicks;
 
     public event Action<EdgeStatus>? Updated;
+    public event Action<EdgeBattery>? PsPressed;
+    public bool IsReportFresh => DateTime.UtcNow.Ticks - Interlocked.Read(ref lastReportTicks) < TimeSpan.FromSeconds(15).Ticks;
     public EdgeStatus Current => Volatile.Read(ref current);
 
     public void Start()
@@ -80,9 +83,11 @@ public sealed class EdgeMonitor : IAsyncDisposable
 
         ProfileNames names = ReadNames(handle);
         var debounce = new ProfileDebouncer();
+        var psButton = new PsPressDetector();
+        EdgeBattery battery = EdgeBattery.Unavailable;
         byte[] buffer = new byte[64];
         long reports = 0;
-        Publish(new EdgeStatus(true, EdgeProfile.Unknown, names, reports, "Connected"));
+        Publish(new EdgeStatus(true, EdgeProfile.Unknown, names, reports, "Connected", battery));
 
         try
         {
@@ -91,7 +96,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
                 if (Interlocked.Exchange(ref refreshRequested, 0) == 1)
                 {
                     names = ReadNames(handle);
-                    Publish(new EdgeStatus(true, debounce.Current, names, reports, "Names refreshed"));
+                    Publish(new EdgeStatus(true, debounce.Current, names, reports, "Names refreshed", battery));
                 }
 
                 int read = await stream.ReadAsync(buffer.AsMemory(), token).ConfigureAwait(false);
@@ -101,9 +106,20 @@ public sealed class EdgeMonitor : IAsyncDisposable
                     continue;
 
                 reports++;
+                Interlocked.Exchange(ref lastReportTicks, DateTime.UtcNow.Ticks);
+                bool batteryChanged = false;
+                if (EdgeInputDecoder.TryDecode(buffer.AsSpan(0, read), out EdgeBattery nextBattery, out bool psDown))
+                {
+                    batteryChanged = battery != nextBattery;
+                    battery = nextBattery;
+                    if (psButton.Observe(psDown, DateTimeOffset.UtcNow))
+                        PsPressed?.Invoke(battery);
+                }
+
                 var profile = EdgeProfileDecoder.Decode(buffer.AsSpan(0, read));
-                if (debounce.Observe(profile))
-                    Publish(new EdgeStatus(true, profile, names, reports, "Input active"));
+                bool profileChanged = debounce.Observe(profile);
+                if (profileChanged || batteryChanged)
+                    Publish(new EdgeStatus(true, debounce.Current, names, reports, "Input active", battery));
             }
         }
         catch (Exception ex) when (token.IsCancellationRequested && ex is IOException or ObjectDisposedException or OperationCanceledException)
