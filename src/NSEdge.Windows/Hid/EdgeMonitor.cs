@@ -45,7 +45,10 @@ public sealed class EdgeMonitor : IAsyncDisposable
         {
             try
             {
-                foreach (string path in NativeMethods.FindEdgePaths())
+                IReadOnlyList<string> paths = NativeMethods.FindEdgePaths();
+                if (paths.Count == 0 && Current.Detail != "No matching DualSense Edge HID interface found")
+                    Publish(EdgeStatus.Disconnected with { Detail = "No matching DualSense Edge HID interface found" });
+                foreach (string path in paths)
                 {
                     token.ThrowIfCancellationRequested();
                     try { await ReadDeviceAsync(path, token).ConfigureAwait(false); }
@@ -141,7 +144,15 @@ public sealed class EdgeMonitor : IAsyncDisposable
                         continue;
                     }
                     if (kind != BluetoothReportKind.Extended)
+                    {
+                        if (read == 78 && buffer[0] == 0x31 &&
+                            detail != "Bluetooth extended report rejected: invalid CRC")
+                        {
+                            detail = "Bluetooth extended report rejected: invalid CRC";
+                            Publish(Snapshot(detail));
+                        }
                         continue;
+                    }
 
                     awaitingExtended = false;
                     detail = "Bluetooth input active; onboard profile mapping unverified";
