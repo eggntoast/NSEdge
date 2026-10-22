@@ -47,7 +47,12 @@ public static class EdgeInputDecoder
             return false;
 
         psDown = (report[10] & 0x01) != 0;
-        byte status = report[53];
+        DecodeBatteryStatus(report[53], out battery);
+        return true;
+    }
+
+    public static void DecodeBatteryStatus(byte status, out EdgeBattery battery)
+    {
         int decile = status & 0x0F;
         int charge = status >> 4;
 
@@ -60,7 +65,6 @@ public static class EdgeInputDecoder
             0xF => new EdgeBattery(null, EdgeChargeState.Error),
             _ => EdgeBattery.Unavailable
         };
-        return true;
     }
 }
 

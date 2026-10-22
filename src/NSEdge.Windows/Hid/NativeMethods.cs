@@ -50,6 +50,41 @@ internal static partial class NativeMethods
         return null;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct HidCaps
+    {
+        public ushort Usage, UsagePage, InputReportByteLength, OutputReportByteLength, FeatureReportByteLength;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 17)] public ushort[] Reserved;
+        public ushort NumberLinkCollectionNodes, NumberInputButtonCaps, NumberInputValueCaps, NumberInputDataIndices;
+        public ushort NumberOutputButtonCaps, NumberOutputValueCaps, NumberOutputDataIndices;
+        public ushort NumberFeatureButtonCaps, NumberFeatureValueCaps, NumberFeatureDataIndices;
+    }
+
+    [DllImport("hid.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool HidD_GetPreparsedData(SafeFileHandle handle, out nint data);
+
+    [DllImport("hid.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool HidD_FreePreparsedData(nint data);
+
+    [DllImport("hid.dll", ExactSpelling = true)]
+    private static extern int HidP_GetCaps(nint preparsedData, out HidCaps capabilities);
+
+    public static int GetInputReportLength(SafeFileHandle handle)
+    {
+        if (!HidD_GetPreparsedData(handle, out nint preparsed))
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), "Cannot read HID descriptor");
+        try
+        {
+            int result = HidP_GetCaps(preparsed, out HidCaps caps);
+            if (result < 0 || caps.InputReportByteLength == 0)
+                throw new IOException($"Cannot read HID capabilities: 0x{result:X8}");
+            return caps.InputReportByteLength;
+        }
+        finally { HidD_FreePreparsedData(preparsed); }
+    }
+
     public static IReadOnlyList<string> FindEdgePaths()
     {
         var result = new List<string>();
