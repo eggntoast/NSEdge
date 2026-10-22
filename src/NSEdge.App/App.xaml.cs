@@ -21,6 +21,7 @@ public partial class App : System.Windows.Application
     private BatteryOverlay? batteryOverlay;
     private DispatcherTimer? freshnessTimer;
     private EdgeBattery lastBattery = EdgeBattery.Unavailable;
+    private byte? lastBtProfileCandidate;
     private readonly LowBatteryPolicy batteryPolicy = new();
     private MainWindow? settingsWindow;
     private AppSettings? settings;
@@ -162,6 +163,16 @@ public partial class App : System.Windows.Application
                 Log.Write("Low battery threshold reached: " + status.Battery.LevelText);
                 batteryOverlay?.Announce(status.Battery, settings.NotificationSeconds, lowWarning: true);
             }
+            if (status.Transport == EdgeTransport.Bluetooth &&
+                status.BluetoothProfileCandidate != lastBtProfileCandidate)
+            {
+                lastBtProfileCandidate = status.BluetoothProfileCandidate;
+                if (lastBtProfileCandidate is byte rawCandidate)
+                    Log.Write($"Bluetooth Edge profile candidate (unverified): 0x{rawCandidate:X2}");
+            }
+            if (status.Transport != EdgeTransport.Bluetooth)
+                lastBtProfileCandidate = null;
+
             if (status.Profile != lastProfile)
             {
                 Log.Write($"Profile: {status.Profile} ({status.Names.DisplayName(status.Profile)}), reports: {status.ReportCount}");

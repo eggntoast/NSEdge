@@ -66,3 +66,30 @@ public static class BluetoothInputDecoder
         return table;
     }
 }
+
+public sealed class StableByteObserver(int requiredReports = 12)
+{
+    private byte? candidate;
+    private int consecutive;
+
+    public byte? Current { get; private set; }
+
+    public bool Observe(byte value)
+    {
+        if (candidate != value)
+        {
+            candidate = value;
+            consecutive = 1;
+        }
+        else if (consecutive < requiredReports)
+        {
+            consecutive++;
+        }
+
+        if (consecutive < requiredReports || Current == value)
+            return false;
+
+        Current = value;
+        return true;
+    }
+}

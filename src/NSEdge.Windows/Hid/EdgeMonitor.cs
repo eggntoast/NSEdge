@@ -88,9 +88,11 @@ public sealed class EdgeMonitor : IAsyncDisposable
         ProfileNames names = bluetooth ? ProfileNames.Empty : ReadNames(handle);
         var debounce = new ProfileDebouncer();
         var psButton = new PsPressDetector();
+        var btCandidateObserver = new StableByteObserver();
         EdgeBattery battery = EdgeBattery.Unavailable;
         byte? batteryStatusRaw = null;
         byte? profileCandidate = null;
+        bool btCandidateChanged = false;
         byte[] buffer = new byte[reportLength];
         long reports = 0;
         bool awaitingExtended = bluetooth;
@@ -147,10 +149,8 @@ public sealed class EdgeMonitor : IAsyncDisposable
                     batteryChanged = battery != input.Battery;
                     battery = input.Battery;
                     batteryStatusRaw = input.RawBatteryStatus;
-                    bool candidateChanged = profileCandidate != input.EdgeProfileCandidate;
-                    profileCandidate = input.EdgeProfileCandidate;
-                    if (candidateChanged && reports > 0 && reports % 128 == 0)
-                        Publish(Snapshot(detail));
+                    btCandidateChanged = btCandidateObserver.Observe(input.EdgeProfileCandidate);
+                    profileCandidate = btCandidateObserver.Current;
                 }
                 else
                 {
@@ -172,7 +172,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
                 if (psButton.Observe(psDown, DateTimeOffset.UtcNow))
                     PsPressed?.Invoke(battery);
 
-                if (profileChanged || batteryChanged || reports == 1)
+                if (profileChanged || batteryChanged || btCandidateChanged || reports == 1)
                     Publish(Snapshot(detail));
             }
         }

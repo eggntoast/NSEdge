@@ -173,6 +173,15 @@ Test("Bluetooth rejects wrong CRC, truncated and wrong report IDs", () =>
     Check(BluetoothInputDecoder.Decode(valid, out _) == BluetoothReportKind.Minimal);
     Check(BluetoothInputDecoder.Decode(Array.Empty<byte>(), out _) == BluetoothReportKind.Invalid);
 });
+Test("Unverified Bluetooth profile candidate requires stable repeated reports", () =>
+{
+    var detector = new StableByteObserver();
+    for (int i = 0; i < 11; i++) Check(!detector.Observe(0x1C));
+    Check(detector.Observe(0x1C) && detector.Current == 0x1C);
+    for (int i = 0; i < 11; i++) Check(!detector.Observe(0x4C));
+    Check(detector.Observe(0x4C) && detector.Current == 0x4C);
+    Check(!detector.Observe(0x4C));
+});
 Console.WriteLine($"Passed {passed} protocol tests.");
 
 void Test(string name, Action action)
