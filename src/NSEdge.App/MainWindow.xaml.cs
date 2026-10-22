@@ -40,7 +40,8 @@ public partial class MainWindow : Window
         bool connected = status.Connected;
         bool unavailable = !connected &&
             (status.Detail.Contains("unavailable", StringComparison.OrdinalIgnoreCase) ||
-             status.Detail.Contains("unsupported", StringComparison.OrdinalIgnoreCase));
+             status.Detail.Contains("unsupported", StringComparison.OrdinalIgnoreCase) ||
+             status.Detail.Contains("not found", StringComparison.OrdinalIgnoreCase));
         ConnectionBadgeText.Text = connected ? "Connected" : unavailable ? "Unavailable" : "Searching";
         StatusDot.Fill = (System.Windows.Media.Brush)FindResource(connected ? "OnlineBrush" : "OfflineBrush");
         ConnectionBadgeText.Foreground = (System.Windows.Media.Brush)FindResource(connected ? "OnlineBrush" : "SecondaryTextBrush");
