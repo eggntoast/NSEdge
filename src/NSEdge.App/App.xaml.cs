@@ -145,7 +145,12 @@ public partial class App : System.Windows.Application
             if (!status.Connected && status.Detail != lastError &&
                 !string.Equals(status.Detail, "Waiting for controller", StringComparison.Ordinal))
                 Log.Write("Controller status: " + status.Detail);
-            lastError = status.Connected ? string.Empty : status.Detail;
+            if (status.Connected && status.Transport == EdgeTransport.Bluetooth &&
+                status.Detail != lastError)
+                Log.Write("Bluetooth status: " + status.Detail);
+            lastError = status.Connected && status.Transport == EdgeTransport.Bluetooth
+                ? status.Detail
+                : status.Connected ? string.Empty : status.Detail;
             if (!status.Connected)
             {
                 batteryPolicy.Reset();
