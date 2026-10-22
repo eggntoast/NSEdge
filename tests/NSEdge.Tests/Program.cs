@@ -182,6 +182,19 @@ Test("Unverified Bluetooth profile candidate requires stable repeated reports", 
     Check(detector.Observe(0x4C) && detector.Current == 0x4C);
     Check(!detector.Observe(0x4C));
 });
+Test("Identify Edge HID collections by attributes", () =>
+{
+    var usb = new EdgeHidDescriptor(0x054C, 0x0DF2, 0x01, 0x05, 64);
+    var bt = new EdgeHidDescriptor(0x054C, 0x0DF2, 0x01, 0x05, 78);
+    Check(EdgeHidIdentity.Match(usb) == EdgeTransport.Usb);
+    Check(EdgeHidIdentity.Match(bt) == EdgeTransport.Bluetooth);
+    Check(EdgeHidIdentity.Match(bt with { VendorId = 0x1234 }) is null);
+    Check(EdgeHidIdentity.Match(bt with { ProductId = 0x0CE6 }) is null);
+    Check(EdgeHidIdentity.Match(bt with { UsagePage = 0xFF00 }) is null);
+    Check(EdgeHidIdentity.Match(bt with { Usage = 0x01 }) is null);
+    Check(EdgeHidIdentity.Match(bt with { InputReportLength = 65 }) is null);
+    Check(EdgeHidIdentity.Match(usb with { Usage = 0x04 }) == EdgeTransport.Usb);
+});
 Console.WriteLine($"Passed {passed} protocol tests.");
 
 void Test(string name, Action action)
