@@ -42,12 +42,19 @@ public partial class MainWindow : Window
         ConnectionBadgeText.Text = connected ? "Connected" : unavailable ? "Unavailable" : "Searching";
         StatusDot.Fill = (System.Windows.Media.Brush)FindResource(connected ? "OnlineBrush" : "OfflineBrush");
         ConnectionBadgeText.Foreground = (System.Windows.Media.Brush)FindResource(connected ? "OnlineBrush" : "SecondaryTextBrush");
-        ConnectionText.Text = connected ? "DualSense Edge  ·  USB" : status.Detail;
+        ConnectionText.Text = connected
+            ? status.Transport == EdgeTransport.Bluetooth ? "DualSense Edge  ·  Bluetooth" : "DualSense Edge  ·  USB"
+            : status.Detail;
         ProfileText.Text = status.Profile == EdgeProfile.Unknown
-            ? connected ? "Waiting for input" : "No active profile"
+            ? connected && status.Transport == EdgeTransport.Bluetooth
+                ? "Profile not verified"
+                : connected ? "Waiting for input" : "No active profile"
             : status.Names.DisplayName(status.Profile);
         ShortcutText.Text = status.Profile == EdgeProfile.Unknown ? "—" : EdgeProfileDecoder.Shortcut(status.Profile);
-        BatteryText.Text = status.Connected ? "Battery: " + status.Battery.Description : "Battery unavailable";
+        BatteryText.Text = status.Connected
+            ? "Battery: " + status.Battery.Description +
+                (status.Transport == EdgeTransport.Bluetooth ? "  ·  Bluetooth preview" : "")
+            : "Battery unavailable";
     }
 
     private void OnSourceInitialized(object? sender, EventArgs e)

@@ -147,7 +147,10 @@ public sealed class EdgeMonitor : IAsyncDisposable
                     batteryChanged = battery != input.Battery;
                     battery = input.Battery;
                     batteryStatusRaw = input.RawBatteryStatus;
+                    bool candidateChanged = profileCandidate != input.EdgeProfileCandidate;
                     profileCandidate = input.EdgeProfileCandidate;
+                    if (candidateChanged && reports > 0 && reports % 128 == 0)
+                        Publish(Snapshot(detail));
                 }
                 else
                 {

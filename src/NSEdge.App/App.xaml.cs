@@ -137,7 +137,9 @@ public partial class App : System.Windows.Application
             if (status.Connected != lastConnected)
             {
                 lastConnected = status.Connected;
-                Log.Write(status.Connected ? "DualSense Edge connected over USB" : "DualSense Edge disconnected");
+                Log.Write(status.Connected
+                    ? $"DualSense Edge connected over {status.Transport}"
+                    : "DualSense Edge disconnected");
             }
             if (!status.Connected && status.Detail != lastError &&
                 !string.Equals(status.Detail, "Waiting for controller", StringComparison.Ordinal))
@@ -189,7 +191,9 @@ public partial class App : System.Windows.Application
     {
         EdgeStatus status = monitor?.Current ?? EdgeStatus.Disconnected;
         if (status.Profile == EdgeProfile.Unknown)
-            overlay?.Announce("Controller not detected", settings?.NotificationSeconds ?? 2.5);
+            overlay?.Announce(status.Connected && status.Transport == EdgeTransport.Bluetooth
+                ? "Bluetooth profile not yet verified"
+                : "Controller not detected", settings?.NotificationSeconds ?? 2.5);
         else
             Announce(status);
     }
@@ -206,13 +210,14 @@ public partial class App : System.Windows.Application
     {
         EdgeStatus status = monitor?.Current ?? EdgeStatus.Disconnected;
         System.Windows.MessageBox.Show(
-            $"Connected: {status.Connected}\nProfile: {status.Profile}\n" +
+            $"Connected: {status.Connected}\nTransport: {status.Transport?.ToString() ?? "None"}\nProfile: {status.Profile}\n" +
             $"Name: {status.Names.DisplayName(status.Profile)}\n" +
             $"Circle: {status.Names.Circle ?? "(not read)"}\n" +
             $"Cross: {status.Names.Cross ?? "(not read)"}\n" +
             $"Square: {status.Names.Square ?? "(not read)"}\n" +
             $"Battery: {status.Battery.Description}\n" +
-            $"USB battery status byte 53: {(status.BatteryStatusRaw is byte raw ? $"0x{raw:X2}" : "Unavailable")}\n" +
+            $"Battery status byte {(status.Transport == EdgeTransport.Bluetooth ? 54 : 53)}: {(status.BatteryStatusRaw is byte raw ? $"0x{raw:X2}" : "Unavailable")}\n" +
+            $"BT Edge candidate byte 50 (unverified): {(status.BluetoothProfileCandidate is byte candidate ? $"0x{candidate:X2}" : "Unavailable")}\n" +
             $"Reports: {status.ReportCount}\nStatus: {status.Detail}\nLog: {Log.Path}",
             "NSEdge diagnostics", MessageBoxButton.OK, MessageBoxImage.Information);
     }
