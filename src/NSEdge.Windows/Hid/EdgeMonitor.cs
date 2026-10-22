@@ -8,6 +8,10 @@ public sealed record EdgeStatus(bool Connected, EdgeProfile Profile, ProfileName
     public byte? BatteryStatusRaw { get; init; }
     public byte? BluetoothProfileCandidate { get; init; }
     public EdgeTransport? Transport { get; init; }
+    public string ScanSummary { get; init; } = "Not scanned";
+    public long MinimalReports { get; init; }
+    public long BadCrcReports { get; init; }
+    public DateTimeOffset? LastInputUtc { get; init; }
     public static readonly EdgeStatus Disconnected = new(false, EdgeProfile.Unknown, ProfileNames.Empty, 0, "Waiting for controller", EdgeBattery.Unavailable);
 }
 
@@ -45,17 +49,26 @@ public sealed class EdgeMonitor : IAsyncDisposable
         {
             try
             {
-                IReadOnlyList<string> paths = NativeMethods.FindEdgePaths();
-                if (paths.Count == 0 && Current.Detail != "No matching DualSense Edge HID interface found")
-                    Publish(EdgeStatus.Disconnected with { Detail = "No matching DualSense Edge HID interface found" });
-                foreach (string path in paths)
+                HidScanResult scan = NativeMethods.ScanEdgeDevices();
+                if (scan.Devices.Count == 0)
+                {
+                    string reason = scan.EdgeInterfaces == 0
+                        ? "DualSense Edge HID interface not found"
+                        : "DualSense Edge interface found, but input format is unsupported";
+                    if (Current.Detail != reason || Current.ScanSummary != scan.Summary)
+                        Publish(EdgeStatus.Disconnected with { Detail = reason, ScanSummary = scan.Summary });
+                }
+
+                foreach (HidDevice device in scan.Devices)
                 {
                     token.ThrowIfCancellationRequested();
-                    try { await ReadDeviceAsync(path, token).ConfigureAwait(false); }
+                    try { await ReadDeviceAsync(device, scan.Summary, token).ConfigureAwait(false); }
                     catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
                     {
-                        Publish(EdgeStatus.Disconnected with { Detail = "Controller unavailable: " + ex.Message });
+                        Publish(EdgeStatus.Disconnected with {
+                            Detail = "Edge HID input unavailable: " + ex.Message,
+                            ScanSummary = scan.Summary });
                     }
                 }
             }
@@ -71,15 +84,15 @@ public sealed class EdgeMonitor : IAsyncDisposable
         Publish(EdgeStatus.Disconnected);
     }
 
-    private async Task ReadDeviceAsync(string path, CancellationToken token)
+    private async Task ReadDeviceAsync(HidDevice device, string scanSummary, CancellationToken token)
     {
-        using SafeFileHandle handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read,
+        using SafeFileHandle handle = File.OpenHandle(device.Path, FileMode.Open, FileAccess.Read,
             FileShare.ReadWrite, FileOptions.Asynchronous);
         int reportLength = NativeMethods.GetInputReportLength(handle);
         EdgeTransport? transport = EdgeTransportDetector.FromInputReportLength(reportLength);
-        if (transport is null)
+        if (transport is null || transport != device.Transport)
         {
-            Publish(EdgeStatus.Disconnected with { Detail = $"Unsupported HID input report length: {reportLength}" });
+            Publish(EdgeStatus.Disconnected with { Detail = $"Unsupported HID input report length: {reportLength}", ScanSummary = scanSummary });
             return;
         }
 
@@ -97,7 +110,8 @@ public sealed class EdgeMonitor : IAsyncDisposable
         byte? profileCandidate = null;
         bool btCandidateChanged = false;
         byte[] buffer = new byte[reportLength];
-        long reports = 0;
+        long reports = 0, minimalReports = 0, badCrcReports = 0;
+        DateTimeOffset? lastInput = null;
         bool awaitingExtended = bluetooth;
         string detail = bluetooth ? "Bluetooth connected; waiting for extended input reports"
                                   : "USB connected";
@@ -107,7 +121,11 @@ public sealed class EdgeMonitor : IAsyncDisposable
         {
             Transport = transport,
             BatteryStatusRaw = batteryStatusRaw,
-            BluetoothProfileCandidate = profileCandidate
+            BluetoothProfileCandidate = profileCandidate,
+            ScanSummary = scanSummary,
+            MinimalReports = minimalReports,
+            BadCrcReports = badCrcReports,
+            LastInputUtc = lastInput
         };
 
         Publish(Snapshot(detail));
@@ -136,6 +154,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
                     var kind = BluetoothInputDecoder.Decode(buffer.AsSpan(0, read), out BluetoothInput input);
                     if (kind == BluetoothReportKind.Minimal)
                     {
+                        minimalReports++;
                         if (awaitingExtended && detail != "Bluetooth minimal input only; extended reports not enabled")
                         {
                             detail = "Bluetooth minimal input only; extended reports not enabled";
@@ -145,11 +164,14 @@ public sealed class EdgeMonitor : IAsyncDisposable
                     }
                     if (kind != BluetoothReportKind.Extended)
                     {
-                        if (read == 78 && buffer[0] == 0x31 &&
-                            detail != "Bluetooth extended report rejected: invalid CRC")
+                        if (read == 78 && buffer[0] == 0x31)
                         {
-                            detail = "Bluetooth extended report rejected: invalid CRC";
-                            Publish(Snapshot(detail));
+                            badCrcReports++;
+                            if (detail != "Bluetooth extended report rejected: invalid CRC")
+                            {
+                                detail = "Bluetooth extended report rejected: invalid CRC";
+                                Publish(Snapshot(detail));
+                            }
                         }
                         continue;
                     }
@@ -179,6 +201,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
                 }
 
                 reports++;
+                lastInput = DateTimeOffset.UtcNow;
                 Interlocked.Exchange(ref lastReportTicks, DateTime.UtcNow.Ticks);
                 if (psButton.Observe(psDown, DateTimeOffset.UtcNow))
                     PsPressed?.Invoke(battery);
@@ -189,7 +212,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
         }
         catch (Exception ex) when (token.IsCancellationRequested &&
             ex is IOException or ObjectDisposedException or OperationCanceledException) { }
-        finally { Publish(EdgeStatus.Disconnected); }
+        finally { Publish(EdgeStatus.Disconnected with { ScanSummary = scanSummary }); }
     }
 
     private static ProfileNames ReadNames(SafeFileHandle handle)

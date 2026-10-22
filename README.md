@@ -2,7 +2,7 @@
 
 NSEdge is an independent Windows companion for the Sony DualSense Edge controller. It reads the active onboard profile and its saved name, and displays a notification when the profile changes.
 
-The project is in early development (v0.2.1). USB profile monitoring is validated on one DualSense Edge (Sony VID `054C`, PID `0DF2`). Experimental read-only Bluetooth detection and extended-input monitoring are included but **not yet validated on an actual Edge over Bluetooth**. LED and gyro controls are not implemented.
+The project is in early development (v0.2.2). USB profile monitoring is validated on one DualSense Edge (Sony VID `054C`, PID `0DF2`). Read-only Bluetooth discovery now uses the device's HID vendor and product attributes, but **Bluetooth input has not yet been validated on a physical Edge**. LED and gyro controls are not implemented.
 
 ## Features
 
@@ -50,7 +50,7 @@ After launch, double-click the tray icon to open NSEdge. The tray menu provides 
 
 Settings and the log are stored under `%LOCALAPPDATA%\NSEdge`. Downloaded development artifacts under the local `zips/` folder are ignored by Git.
 
-For the prebuilt application, download the `NSEdge-win-x64` artifact from a successful [Actions run](https://github.com/eggntoast/NSEdge/actions). Debug symbols are provided separately as `NSEdge-symbols`. No official release or signing certificate has been published.
+For the prebuilt application, download the versioned `NSEdge-vX.Y.Z-win-x64.zip` artifact from a successful [Actions run](https://github.com/eggntoast/NSEdge/actions). Debug symbols are provided separately as `NSEdge-symbols`. No official release or signing certificate has been published.
 
 ## Current limitations
 
@@ -81,6 +81,6 @@ Use the tray **Diagnostics** command to inspect the raw battery-status byte repo
 
 ## Bluetooth validation
 
-Bluetooth HID input report length is determined using `HidD_GetPreparsedData` and `HidP_GetCaps`, not inferred from the device name. Input report `0x31` is validated against the 78-byte layout and the Bluetooth CRC-32 seeded with `0xA1`. The common input payload starts at byte 2 instead of USB byte 1, so PS is at byte 11 and battery at byte 54. This framing is documented by [Linux hid-playstation.c](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-playstation.c) and independently used by [DS4Windows](https://github.com/ds4windowsapp/DS4Windows/blob/main/DS4Windows/DS4Library/InputDevices/DualSenseDevice.cs).
+HID devices are identified using `HidD_GetAttributes` rather than text in device paths. Bluetooth HID input report length is determined using `HidD_GetPreparsedData` and `HidP_GetCaps`, not inferred from the device name. Input report `0x31` is validated against the 78-byte layout and the Bluetooth CRC-32 seeded with `0xA1`. The common input payload starts at byte 2 instead of USB byte 1, so PS is at byte 11 and battery at byte 54. This framing is documented by [Linux hid-playstation.c](https://github.com/torvalds/linux/blob/master/drivers/hid/hid-playstation.c) and independently used by [DS4Windows](https://github.com/ds4windowsapp/DS4Windows/blob/main/DS4Windows/DS4Library/InputDevices/DualSenseDevice.cs).
 
 To validate over Bluetooth, pair the physical Edge normally, run DS4Windows if desired, then inspect NSEdge's tray **Diagnostics** and log. Verify transport, report count, raw battery byte, PS overlay, and whether only minimal reports appear. Do not assume pairing implies the application receives the extended report. If the controller requires an output command to enable extended mode, NSEdge will report that limitation rather than send a command. Current behavior is limited to read-only monitoring and no official release is available.

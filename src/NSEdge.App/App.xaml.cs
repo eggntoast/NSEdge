@@ -234,7 +234,9 @@ public partial class App : System.Windows.Application
             $"Battery: {status.Battery.Description}\n" +
             $"Battery status byte {(status.Transport == EdgeTransport.Bluetooth ? 54 : 53)}: {(status.BatteryStatusRaw is byte raw ? $"0x{raw:X2}" : "Unavailable")}\n" +
             $"BT Edge candidate byte 50 (unverified): {(status.BluetoothProfileCandidate is byte candidate ? $"0x{candidate:X2}" : "Unavailable")}\n" +
-            $"Reports: {status.ReportCount}\nStatus: {status.Detail}\nLog: {Log.Path}",
+            $"Reports: {status.ReportCount}; BT minimal: {status.MinimalReports}; bad CRC: {status.BadCrcReports}\n" +
+            $"Last input (UTC): {status.LastInputUtc?.ToString("O") ?? "None"}\n" +
+            $"Discovery: {status.ScanSummary}\nStatus: {status.Detail}\nLog: {Log.Path}",
             "NSEdge diagnostics", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
