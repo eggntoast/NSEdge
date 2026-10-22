@@ -134,6 +134,45 @@ Test("Low battery warnings are edge-triggered and discharging only", () =>
     policy.Reset();
     Check(policy.Observe(low, 20));
 });
+Test("HID report length separates USB from Bluetooth", () =>
+{
+    Check(EdgeTransportDetector.FromInputReportLength(64) == EdgeTransport.Usb);
+    Check(EdgeTransportDetector.FromInputReportLength(78) == EdgeTransport.Bluetooth);
+    Check(EdgeTransportDetector.FromInputReportLength(65) is null);
+    Check(EdgeTransportDetector.FromInputReportLength(0) is null);
+});
+Test("Bluetooth CRC known vector", () =>
+{
+    // Verified independently with IEEE CRC-32 of 0xA1 + report bytes 0..73.
+    byte[] report = FullBluetoothReport();
+    Check(BluetoothInputDecoder.CalculateInputCrc(report.AsSpan(0, 74)) == 0x03EFD7C0);
+    Check(BluetoothInputDecoder.HasValidCrc(report));
+    report[21] ^= 1;
+    Check(!BluetoothInputDecoder.HasValidCrc(report));
+});
+Test("Bluetooth PS and battery use shifted common input fields", () =>
+{
+    byte[] report = FullBluetoothReport();
+    Check(BluetoothInputDecoder.Decode(report, out BluetoothInput input) == BluetoothReportKind.Extended);
+    Check(input.PsPressed);
+    Check(input.Battery == new EdgeBattery(4, EdgeChargeState.Charging));
+    Check(input.RawBatteryStatus == 0x14);
+    Check(input.EdgeProfileCandidate == 0x4C);
+    Check(EdgeProfileDecoder.Decode(report) == EdgeProfile.Unknown); // USB decoder must not accept BT
+});
+Test("Bluetooth rejects wrong CRC, truncated and wrong report IDs", () =>
+{
+    byte[] valid = FullBluetoothReport();
+    valid[74] ^= 1;
+    Check(BluetoothInputDecoder.Decode(valid, out _) == BluetoothReportKind.Invalid);
+    Check(BluetoothInputDecoder.Decode(valid.AsSpan(0, 77), out _) == BluetoothReportKind.Invalid);
+    valid = FullBluetoothReport();
+    valid[0] = 0x22;
+    Check(BluetoothInputDecoder.Decode(valid, out _) == BluetoothReportKind.Invalid);
+    valid[0] = 0x01;
+    Check(BluetoothInputDecoder.Decode(valid, out _) == BluetoothReportKind.Minimal);
+    Check(BluetoothInputDecoder.Decode(Array.Empty<byte>(), out _) == BluetoothReportKind.Invalid);
+});
 Console.WriteLine($"Passed {passed} protocol tests.");
 
 void Test(string name, Action action)
@@ -179,5 +218,20 @@ static byte[] BatteryReport(byte status)
     byte[] report = new byte[64];
     report[0] = 0x01;
     report[53] = status;
+    return report;
+}
+
+static byte[] FullBluetoothReport()
+{
+    byte[] report = new byte[78];
+    report[0] = 0x31;
+    report[1] = 0x10;
+    report[11] = 0x01;
+    report[50] = 0x4C;
+    report[54] = 0x14;
+    report[74] = 0xC0;
+    report[75] = 0xD7;
+    report[76] = 0xEF;
+    report[77] = 0x03;
     return report;
 }

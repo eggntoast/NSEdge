@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>NSEdge</AssemblyName>
     <RootNamespace>NSEdge.App</RootNamespace>
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
     <Authors>NS</Authors>
     <Copyright>Copyright (c) 2026 NS</Copyright>
     <Description>DualSense Edge USB profile and battery companion</Description>
