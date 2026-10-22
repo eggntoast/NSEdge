@@ -71,63 +71,114 @@ internal static partial class NativeMethods
     [DllImport("hid.dll", ExactSpelling = true)]
     private static extern int HidP_GetCaps(nint preparsedData, out HidCaps capabilities);
 
-    public static int GetInputReportLength(SafeFileHandle handle)
+    [StructLayout(LayoutKind.Sequential)]
+    private struct HidAttributes
     {
-        if (!HidD_GetPreparsedData(handle, out nint preparsed))
-            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), "Cannot read HID descriptor");
-        try
-        {
-            int result = HidP_GetCaps(preparsed, out HidCaps caps);
-            if (result < 0 || caps.InputReportByteLength == 0)
-                throw new IOException($"Cannot read HID capabilities: 0x{result:X8}");
-            return caps.InputReportByteLength;
-        }
-        finally { HidD_FreePreparsedData(preparsed); }
+        public int Size;
+        public ushort VendorId, ProductId, VersionNumber;
     }
 
-    public static IReadOnlyList<string> FindEdgePaths()
+    [DllImport("hid.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool HidD_GetAttributes(SafeFileHandle handle, ref HidAttributes attributes);
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle OpenMetadata(string path, uint access, FileShare share,
+        nint security, FileMode disposition, uint flags, nint template);
+
+    public static HidScanResult ScanEdgeDevices()
     {
-        var result = new List<string>();
+        var devices = new List<HidDevice>();
+        int scanned = 0, matching = 0, blocked = 0, unsupported = 0;
         Guid guid = HidGuid;
         nint list = SetupDiGetClassDevs(ref guid, 0, 0, DigcfPresent | DigcfDeviceInterface);
-        if (list == nint.Zero || list == new nint(-1))
-            return result;
-
+        if (list == 0 || list == -1)
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "HID enumeration failed");
         try
         {
             for (uint index = 0; index < 256; index++)
             {
                 var item = new DeviceInterfaceData { Size = Marshal.SizeOf<DeviceInterfaceData>() };
                 if (!SetupDiEnumDeviceInterfaces(list, 0, ref guid, index, ref item))
+                {
+                    int error = Marshal.GetLastWin32Error();
+                    if (error != 259)
+                        throw new Win32Exception(error, "HID enumeration failed");
                     break;
-
-                SetupDiGetDeviceInterfaceDetail(list, ref item, 0, 0, out uint required, 0);
-                if (required is < 8 or > 32768)
-                    continue;
-
-                nint detail = Marshal.AllocHGlobal(checked((int)required));
+                }
+                scanned++;
+                SetupDiGetDeviceInterfaceDetail(list, ref item, 0, 0, out uint needed, 0);
+                if (needed is < 8 or > 32768) continue;
+                nint detail = Marshal.AllocHGlobal((int)needed);
                 try
                 {
                     Marshal.WriteInt32(detail, IntPtr.Size == 8 ? 8 : 6);
-                    if (!SetupDiGetDeviceInterfaceDetail(list, ref item, detail, required, out _, 0))
+                    if (!SetupDiGetDeviceInterfaceDetail(list, ref item, detail, needed, out _, 0))
+                    {
+                        blocked++;
                         continue;
+                    }
 
                     string? path = Marshal.PtrToStringUni(detail + 4);
-                    if (path is not null &&
-                        path.Contains("vid_054c", StringComparison.OrdinalIgnoreCase) &&
-                        path.Contains("pid_0df2", StringComparison.OrdinalIgnoreCase))
-                        result.Add(path);
+                    if (string.IsNullOrWhiteSpace(path)) continue;
+                    using SafeFileHandle handle = OpenMetadata(path, 0, FileShare.ReadWrite,
+                        0, FileMode.Open, 0, 0);
+                    if (handle.IsInvalid) { blocked++; continue; }
+
+                    var attr = new HidAttributes { Size = Marshal.SizeOf<HidAttributes>() };
+                    if (!HidD_GetAttributes(handle, ref attr)) { blocked++; continue; }
+                    if (attr.VendorId != EdgeProfileDecoder.VendorId ||
+                        attr.ProductId != EdgeProfileDecoder.ProductId) continue;
+                    matching++;
+
+                    try
+                    {
+                        HidCaps caps = ReadCaps(handle);
+                        var info = new EdgeHidDescriptor(attr.VendorId, attr.ProductId,
+                            caps.UsagePage, caps.Usage, caps.InputReportByteLength);
+                        EdgeTransport? transport = EdgeHidIdentity.Match(info);
+                        if (transport is EdgeTransport t)
+                            devices.Add(new HidDevice(path, t, caps.InputReportByteLength,
+                                caps.UsagePage, caps.Usage));
+                        else unsupported++;
+                    }
+                    catch (IOException) { unsupported++; }
+                    catch (Win32Exception) { unsupported++; }
                 }
-                finally
-                {
-                    Marshal.FreeHGlobal(detail);
-                }
+                finally { Marshal.FreeHGlobal(detail); }
             }
         }
-        finally
-        {
-            SetupDiDestroyDeviceInfoList(list);
-        }
-        return result;
+        finally { SetupDiDestroyDeviceInfoList(list); }
+
+        return new HidScanResult(devices.OrderBy(d => d.Transport == EdgeTransport.Usb ? 0 : 1)
+            .ToArray(), scanned, matching, blocked, unsupported);
     }
+
+    private static HidCaps ReadCaps(SafeFileHandle handle)
+    {
+        if (!HidD_GetPreparsedData(handle, out nint data))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot read HID capabilities");
+        try
+        {
+            int status = HidP_GetCaps(data, out HidCaps caps);
+            if (status < 0 || caps.InputReportByteLength == 0)
+                throw new IOException($"Invalid HID capabilities: 0x{status:X8}");
+            return caps;
+        }
+        finally { HidD_FreePreparsedData(data); }
+    }
+
+    public static int GetInputReportLength(SafeFileHandle handle) =>
+        ReadCaps(handle).InputReportByteLength;
+}
+
+internal sealed record HidDevice(string Path, EdgeTransport Transport,
+    int InputReportLength, ushort UsagePage, ushort Usage);
+
+internal sealed record HidScanResult(IReadOnlyList<HidDevice> Devices,
+    int InterfacesScanned, int EdgeInterfaces, int MetadataFailures, int UnsupportedInterfaces)
+{
+    public string Summary => $"HID: {InterfacesScanned} interfaces; " +
+        $"Edge: {EdgeInterfaces}; supported: {Devices.Count}; " +
+        $"metadata failures: {MetadataFailures}; unsupported: {UnsupportedInterfaces}";
 }
