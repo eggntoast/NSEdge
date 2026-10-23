@@ -180,6 +180,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
                 bool psDown = false;
                 bool batteryChanged = false;
                 bool profileChanged = false;
+                bool usbCandidateChanged = false;
 
                 if (bluetooth)
                 {
@@ -230,7 +231,8 @@ public sealed class EdgeMonitor : IAsyncDisposable
                         batteryStatusRaw = buffer[53];
                     }
                     profileChanged = debounce.Observe(EdgeProfileDecoder.Decode(buffer.AsSpan(0, read)));
-                    if (usbCandidateObserver.Observe(buffer[EdgeProfileDecoder.ProfileByteIndex]))
+                    usbCandidateChanged = usbCandidateObserver.Observe(buffer[EdgeProfileDecoder.ProfileByteIndex]);
+                    if (usbCandidateChanged)
                         usbProfileCandidate = usbCandidateObserver.Current;
                     detail = "USB input active";
                 }
@@ -241,8 +243,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
                 if (psButton.Observe(psDown, DateTimeOffset.UtcNow))
                     PsPressed?.Invoke(battery);
 
-                if (profileChanged || batteryChanged || btCandidateChanged || reports == 1 ||
-                    (!bluetooth && usbProfileCandidate is not null && reports % 250 == 0))
+                if (profileChanged || batteryChanged || btCandidateChanged || usbCandidateChanged || reports == 1)
                     Publish(Snapshot(detail));
             }
         }

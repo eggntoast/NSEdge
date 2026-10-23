@@ -5,7 +5,8 @@ public enum EdgeProfile
     Unknown,
     Default,
     Circle,
-    Cross
+    Cross,
+    Square
 }
 
 public static class EdgeProfileDecoder
@@ -36,6 +37,7 @@ public static class EdgeProfileDecoder
         EdgeProfile.Default => "Fn + Triangle",
         EdgeProfile.Circle => "Fn + Circle",
         EdgeProfile.Cross => "Fn + Cross",
+        EdgeProfile.Square => "Fn + Square",
         _ => "Unknown"
     };
 }
@@ -76,6 +78,7 @@ public sealed record ProfileNames(string? Circle, string? Cross, string? Square)
         EdgeProfile.Default => "Default",
         EdgeProfile.Circle => string.IsNullOrWhiteSpace(Circle) ? "Circle profile" : Circle,
         EdgeProfile.Cross => string.IsNullOrWhiteSpace(Cross) ? "Cross profile" : Cross,
+        EdgeProfile.Square => string.IsNullOrWhiteSpace(Square) ? "Square profile" : Square,
         _ => "Unknown"
     };
 }

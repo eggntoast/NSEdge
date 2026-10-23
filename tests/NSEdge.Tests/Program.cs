@@ -55,6 +55,8 @@ Test("Display name fallback", () =>
     Check(names.DisplayName(EdgeProfile.Circle) == "DarkSouls");
     Check(names.DisplayName(EdgeProfile.Cross) == "Silent Hill");
     Check(ProfileNames.Empty.DisplayName(EdgeProfile.Circle) == "Circle profile");
+    Check(ProfileNames.Empty.DisplayName(EdgeProfile.Square) == "Square profile");
+    Check(EdgeProfileDecoder.Shortcut(EdgeProfile.Square) == "Fn + Square");
 });
 Test("Repeated reports do not retrigger a notification", () =>
 {
