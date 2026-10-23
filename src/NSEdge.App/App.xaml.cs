@@ -68,6 +68,12 @@ public partial class App : System.Windows.Application
                         if (batterySettingsTest.ActualHeight > SystemParameters.WorkArea.Height - 32)
                             throw new InvalidOperationException("Battery settings exceeds desktop work area.");
                         batterySettingsTest.Close();
+                        var lightingSettingsTest = new LightingSettingsWindow(settings, store, () => { }) { Owner = settingsWindow };
+                        lightingSettingsTest.Show();
+                        lightingSettingsTest.UpdateLayout();
+                        if (lightingSettingsTest.ActualHeight > SystemParameters.WorkArea.Height - 32)
+                            throw new InvalidOperationException("Lighting settings exceeds desktop work area.");
+                        lightingSettingsTest.Close();
                         string? preview = Environment.GetEnvironmentVariable("NSEDGE_PREVIEW_PATH");
                         if (!string.IsNullOrWhiteSpace(preview))
                         {

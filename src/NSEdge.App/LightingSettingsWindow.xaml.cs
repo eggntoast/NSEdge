@@ -43,21 +43,21 @@ public partial class LightingSettingsWindow : Window
 
     private void ApplyClick(object sender, RoutedEventArgs e)
     {
-        TextBox[] inputs = { CriticalText, LowText, MediumText, HighText, ChargingText, FullText, StaticText };
+        System.Windows.Controls.TextBox[] inputs = { CriticalText, LowText, MediumText, HighText, ChargingText, FullText, StaticText };
         if (inputs.Any(t => !LightbarColor.TryParse(t.Text, out _)) ||
             !int.TryParse(CriticalBelowText.Text, out int critical) ||
             !int.TryParse(LowBelowText.Text, out int low) ||
             !int.TryParse(MediumBelowText.Text, out int medium) ||
             critical < 10 || critical >= low || low >= medium || medium > 100)
         {
-            MessageBox.Show(this, "Enter valid #RRGGBB colours and increasing thresholds between 10 and 100.",
+            System.Windows.MessageBox.Show(this, "Enter valid #RRGGBB colours and increasing thresholds between 10 and 100.",
                 "Lighting settings", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         bool enabled = EnabledToggle.IsChecked == true;
         if (enabled && !settings.NativeLightingEnabled &&
-            MessageBox.Show(this,
+            System.Windows.MessageBox.Show(this,
                 "Enable experimental native lighting? NSEdge sends Sony lightbar reports only when DS4Windows and known controller managers are not detected. Other software may still contend for the device. Colours may persist until reconnect. The Windows output path has not been hardware-validated.",
                 "Enable native lighting", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
             return;
