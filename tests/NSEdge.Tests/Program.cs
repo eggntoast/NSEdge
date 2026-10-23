@@ -64,6 +64,17 @@ Test("Bluetooth lightbar output frames and authenticates colour", () =>
     report[48] ^= 1;
     Check(actual != DualSenseLightbarReport.CalculateOutputCrc(report.AsSpan(0, 74)));
 });
+Test("Bluetooth setup report uses LED initialization only", () =>
+{
+    byte[] report = DualSenseLightbarReport.BuildBluetoothSetup(2);
+    Check(report.Length == 78 && report[0] == 0x31 && report[1] == 0x20 && report[2] == 0x10);
+    Check(report[41] == 0x02 && report[44] == 0x01);
+    uint crc = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(report.AsSpan(74));
+    Check(crc == DualSenseLightbarReport.CalculateOutputCrc(report.AsSpan(0, 74)));
+    byte[] usb = DualSenseLightbarReport.BuildUsbSetup();
+    Check(usb[0] == 0x02 && usb[39] == 0x02 && usb[42] == 0x01);
+    Check(usb[2] == 0 && report[4] == 0);
+});
 Test("DS4Windows disconnect targeting is controller-specific", () =>
 {
     Check(Ds4ControllerTarget.IsMatch("AA:11:22:33:44:55", "aa1122334455", "BT"));

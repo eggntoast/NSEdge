@@ -12,6 +12,7 @@ internal sealed class NativeLightingService(EdgeMonitor monitor, AppSettings set
     private readonly CancellationTokenSource stopping = new();
     private Task? active;
     private string? lastWrite;
+    private string? initializedPath;
     private string lastStatus = "Lighting is off";
     private byte sequence;
 
@@ -39,6 +40,7 @@ internal sealed class NativeLightingService(EdgeMonitor monitor, AppSettings set
                 if (!settings.NativeLightingEnabled)
                 {
                     lastWrite = null;
+                    initializedPath = null;
                     SetStatus("Lighting is off");
                     return;
                 }
@@ -48,6 +50,7 @@ internal sealed class NativeLightingService(EdgeMonitor monitor, AppSettings set
                 if (!state.Connected || !monitor.IsReportFresh || path is null || state.Transport is null)
                 {
                     lastWrite = null;
+                    initializedPath = null;
                     SetStatus("Waiting for a controller");
                     return;
                 }
@@ -69,6 +72,7 @@ internal sealed class NativeLightingService(EdgeMonitor monitor, AppSettings set
                 if (!CanOwnOutput())
                 {
                     lastWrite = null;
+                    initializedPath = null;
                     SetStatus("Other controller software detected; native lighting paused");
                     return;
                 }
@@ -88,12 +92,16 @@ internal sealed class NativeLightingService(EdgeMonitor monitor, AppSettings set
                 try
                 {
                     // The report only enables RGB lightbar fields; all other valid flags remain unset.
-                    NativeLightbar.WriteColor(path, state.Transport.Value, color.Value, sequence++);
+                    bool initialize = initializedPath != path;
+                    NativeLightbar.WriteColor(path, state.Transport.Value, color.Value, sequence, initialize);
+                    sequence += (byte)(initialize ? 2 : 1);
+                    initializedPath = path;
                     SetStatus("Lightbar command sent; physical response not verified");
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                     ArgumentException or Win32Exception or NotSupportedException)
                 {
+                    initializedPath = null;
                     SetStatus("Lighting unavailable: " + ex.GetType().Name);
                 }
             }

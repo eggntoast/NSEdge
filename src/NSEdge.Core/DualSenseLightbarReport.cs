@@ -28,6 +28,33 @@ public static class DualSenseLightbarReport
         return report;
     }
 
+    public static byte[] BuildUsbSetup(int reportLength = 63)
+    {
+        if (reportLength is not (63 or 64))
+            throw new ArgumentOutOfRangeException(nameof(reportLength));
+        byte[] report = new byte[reportLength];
+        report[0] = 0x02;
+        PutSetup(report, 1);
+        return report;
+    }
+
+    public static byte[] BuildBluetoothSetup(byte sequence)
+    {
+        byte[] report = new byte[78];
+        report[0] = 0x31;
+        report[1] = (byte)((sequence & 0x0F) << 4);
+        report[2] = 0x10;
+        PutSetup(report, 3);
+        BinaryPrimitives.WriteUInt32LittleEndian(report.AsSpan(74, 4), CalculateOutputCrc(report.AsSpan(0, 74)));
+        return report;
+    }
+
+    private static void PutSetup(byte[] report, int start)
+    {
+        report[start + 38] = 0x02; // Enable LED setup only.
+        report[start + 41] = 0x01; // Fade startup animation out before RGB commands.
+    }
+
     private static void PutColor(byte[] report, int start, LightbarColor color)
     {
         report[start + 1] = 0x04;
