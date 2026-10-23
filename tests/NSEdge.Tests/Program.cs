@@ -1,4 +1,5 @@
 using NSEdge.Core;
+using NSEdge.Windows.Hid;
 
 int passed = 0;
 Test("Known profile states", () =>
@@ -271,6 +272,47 @@ Test("Controller identifiers must match across transports", () =>
     Check(ControllerIdentity.Normalize("000000000000") is null);
     Check(ControllerIdentity.Normalize("FFFFFFFFFFFF") is null);
     Check(ControllerIdentity.Normalize("BT-PATH") is null);
+});
+Test("USB name cache is restricted to the matching controller", () =>
+{
+    string folder = Path.Combine(Path.GetTempPath(), "NSEdge-cache-tests-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var cache = new ProfileNameCache(folder);
+        var saved = new ProfileNames("DarkSouls", "Silent Hill", null);
+        cache.Save("AA1122334455", saved);
+        Check(cache.Read("aa:11:22:33:44:55") == saved);
+        Check(cache.Read("AA1122334456") == ProfileNames.Empty);
+        Check(cache.Read(null) == ProfileNames.Empty);
+        Check(cache.Read("000000000000") == ProfileNames.Empty);
+        cache.Save(null, new ProfileNames("Unknown", "Unknown", "Unknown"));
+        Check(Directory.GetFiles(folder, "*.json").Length == 1);
+
+        var reopened = new ProfileNameCache(folder);
+        Check(reopened.Read("AA-11-22-33-44-55") == saved);
+        reopened.Save("AA1122334455", new ProfileNames("Updated", "Silent Hill", ""));
+        Check(reopened.Read("AA1122334455").Circle == "Updated");
+    }
+    finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+});
+Test("Unreadable cached names do not fabricate a profile", () =>
+{
+    string folder = Path.Combine(Path.GetTempPath(), "NSEdge-cache-tests-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var cache = new ProfileNameCache(folder);
+        cache.Save("AA1122334455", new ProfileNames("DarkSouls", null, null));
+        string filename = Directory.GetFiles(folder, "*.json").Single();
+        File.WriteAllText(filename, "{ invalid json");
+        Check(cache.Read("AA1122334455") == ProfileNames.Empty);
+
+        File.WriteAllText(Path.Combine(folder, "identity.key"), "invalid");
+        bool rejected = false;
+        try { _ = new ProfileNameCache(folder); }
+        catch (InvalidDataException) { rejected = true; }
+        Check(rejected);
+    }
+    finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
 });
 Console.WriteLine($"Passed {passed} protocol tests.");
 

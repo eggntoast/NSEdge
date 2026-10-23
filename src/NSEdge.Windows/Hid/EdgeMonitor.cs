@@ -122,7 +122,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
             else
                 nameCache.Save(controllerId, names);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             names = bluetooth ? ProfileNames.Empty : names;
         }
@@ -165,14 +165,27 @@ public sealed class EdgeMonitor : IAsyncDisposable
             {
                 if (Interlocked.Exchange(ref refreshRequested, 0) == 1)
                 {
-                    if (!bluetooth)
+                    if (bluetooth)
+                    {
+                        try
+                        {
+                            names = nameCache?.Read(controllerId) ?? ProfileNames.Empty;
+                            cachedNames = names != ProfileNames.Empty;
+                        }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+                        {
+                            names = ProfileNames.Empty;
+                            cachedNames = false;
+                        }
+                    }
+                    else
                     {
                         names = ReadNames(handle);
                         try { nameCache?.Save(controllerId, names); }
                         catch (IOException) { }
                         catch (UnauthorizedAccessException) { }
                     }
-                    Publish(Snapshot(bluetooth ? "Bluetooth uses cached USB names when available" : "Names refreshed"));
+                    Publish(Snapshot(bluetooth ? "Cached names refreshed" : "Names refreshed"));
                 }
 
                 int read = await stream.ReadAsync(buffer.AsMemory(), token).ConfigureAwait(false);
