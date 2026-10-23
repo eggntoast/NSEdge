@@ -1,0 +1,8 @@
+version=v0.2.11
+source=ae4f27ed8a405dc296a02c9ed3e15560da2b2f05
+build_run=39942121372
+artifact_id=12496910850
+sha256=92c3b8f4061156fdd3dddc6c4a40a0661871a85f56107a47bec05d072774f2e5
+# Polished WPF dashboard with direct Lighting settings, readable dark dropdowns, colour swatches, RGB/HEX editor, simpler language and clear paused-lighting status.
+# Windows CI passed 38 protocol tests, dialog smoke checks, UI preview export and package verification. No change to HID output or battery interpretation.
+# Experimental unsigned Windows 11 x64 prerelease. DS4Windows override, automatic restoration and physical LED response remain unverified or unsupported.
