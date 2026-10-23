@@ -11,7 +11,7 @@ public static class NativeLightbar
         if (string.IsNullOrWhiteSpace(devicePath))
             throw new ArgumentException("Controller device path is unavailable.", nameof(devicePath));
 
-        int outputLength = NativeMethods.GetOutputReportLength(devicePath);
+        int outputLength = NativeMethods.GetOutputReportLength(devicePath, transport);
         byte[] report = transport switch
         {
             EdgeTransport.Usb => DualSenseLightbarReport.BuildUsb(color, outputLength),
