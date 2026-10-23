@@ -7,9 +7,9 @@
         FontFamily="Segoe UI" UseLayoutRounding="True" SnapsToDevicePixels="True"
         SourceInitialized="OnSourceInitialized">
     <StackPanel Margin="23,22,23,22">
-        <TextBlock Text="Battery settings" FontSize="22" FontWeight="SemiBold"
+        <TextBlock Text="Battery alerts" FontSize="22" FontWeight="SemiBold"
                    Foreground="{StaticResource PrimaryTextBrush}"/>
-        <TextBlock Text="Battery popups and alerts"
+        <TextBlock Text="Choose when NSEdge shows battery warnings"
                    Style="{StaticResource SecondaryLabel}" Margin="0,6,0,19"/>
         <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1" CornerRadius="10" Padding="16,9">
@@ -20,8 +20,8 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="PS-button popup" Style="{StaticResource SettingLabel}"/>
-                        <TextBlock Text="Show battery data when PS is pressed" Style="{StaticResource SecondaryLabel}"
+                        <TextBlock Text="Show battery on PS button" Style="{StaticResource SettingLabel}"/>
+                        <TextBlock Text="Show the battery level when you press PS" Style="{StaticResource SecondaryLabel}"
                                    Margin="0,4,0,0"/>
                     </StackPanel>
                     <ToggleButton Grid.Column="1" x:Name="PsBatteryCheck" Style="{StaticResource SettingToggleStyle}"
@@ -35,7 +35,7 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="Low-battery alerts" Style="{StaticResource SettingLabel}"/>
+                        <TextBlock Text="Low-battery warnings" Style="{StaticResource SettingLabel}"/>
                         <TextBlock Text="Warn when the battery gets low"
                                    Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
                     </StackPanel>
@@ -63,14 +63,9 @@
                     AutomationProperties.Name="Low-battery warning threshold, percent"
                     ValueChanged="SettingChanged"/>
         </Grid>
-        <TextBlock Text="Battery levels are reported in 10% bands, not precise percentages."
+        <TextBlock Text="Battery levels are approximate, in steps of 10%."
                    Style="{StaticResource SecondaryLabel}" TextWrapping="Wrap" Margin="0,4,0,17"/>
-        <Grid>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <Button Content="Controller lighting…" Style="{StaticResource ActionButtonStyle}"
-                    HorizontalAlignment="Left" Click="LightingClick"/>
-            <Button Content="Done" Grid.Column="1" Width="88"
-                    Style="{StaticResource PrimaryButtonStyle}" Click="DoneClick"/>
-        </Grid>
+        <Button Content="Close" HorizontalAlignment="Right" Width="94"
+                Style="{StaticResource PrimaryButtonStyle}" Click="DoneClick"/>
     </StackPanel>
 </Window>

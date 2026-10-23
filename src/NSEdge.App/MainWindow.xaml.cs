@@ -17,10 +17,11 @@ public partial class MainWindow : Window
     private readonly Action showCurrent;
     private readonly Action refresh;
     private readonly Action lightingChanged;
+    private readonly Func<string> lightingStatus;
     private bool initializing = true;
     private bool restoringAutostart;
 
-    public MainWindow(AppSettings settings, SettingsStore store, Action showCurrent, Action refresh, Action lightingChanged)
+    public MainWindow(AppSettings settings, SettingsStore store, Action showCurrent, Action refresh, Action lightingChanged, Func<string> lightingStatus)
     {
         InitializeComponent();
         this.settings = settings;
@@ -28,6 +29,7 @@ public partial class MainWindow : Window
         this.showCurrent = showCurrent;
         this.refresh = refresh;
         this.lightingChanged = lightingChanged;
+        this.lightingStatus = lightingStatus;
         NotificationsCheck.IsChecked = settings.ShowNotifications;
         DurationSlider.Value = settings.NotificationSeconds;
         DurationText.Text = $"{settings.NotificationSeconds:0.0} s";
@@ -35,6 +37,7 @@ public partial class MainWindow : Window
         catch (Exception ex) { Log.Write("Startup entry unavailable: " + ex.Message); }
         VersionText.Text = $"v{typeof(App).Assembly.GetName().Version?.ToString(3)}  ·  Developed by NS";
         initializing = false;
+        UpdateLightingStatus();
     }
 
     public void SetStatus(EdgeStatus status)
@@ -64,12 +67,35 @@ public partial class MainWindow : Window
             : "Battery unavailable";
     }
 
+    public void UpdateLightingStatus()
+    {
+        string status = lightingStatus();
+        LightingModeText.Text = settings.NativeLightingEnabled ? settings.LightingMode switch
+        {
+            LightbarMode.BatteryBands => "Battery level",
+            LightbarMode.BatteryGradient => "Battery gradient",
+            LightbarMode.Static => "Single colour",
+            _ => "Lighting"
+        } : "Off";
+
+        LightingStatusText.Text = LightingStatusCopy.Describe(settings.NativeLightingEnabled, status);
+        LightbarPalette? palette = settings.LightingPalette();
+        LightbarColor? preview = settings.NativeLightingEnabled && palette is not null
+            ? LightbarPolicy.Select((System.Windows.Application.Current as App)?.CurrentBattery ?? EdgeBattery.Unavailable,
+                settings.LightingMode, palette)
+            : null;
+        LightingPreviewDot.Fill = preview is LightbarColor c
+            ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(c.Red, c.Green, c.Blue))
+            : (Brush)FindResource("BorderBrush");
+        LightingPreviewDot.ToolTip = preview is null ? "No lighting preview" : "Selected colour preview, not a hardware confirmation";
+    }
+
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
         var area = SystemParameters.WorkArea;
         MaxHeight = Math.Max(260, area.Height - 32);
         MaxWidth = Math.Max(320, area.Width - 32);
-        Width = Math.Min(514, MaxWidth);
+        Width = Math.Min(520, MaxWidth);
 
         using System.Drawing.Icon? icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
         if (icon is not null)
@@ -110,15 +136,17 @@ public partial class MainWindow : Window
         UpdateLayout();
         if (ResizeMode != ResizeMode.NoResize || SizeToContent != SizeToContent.Height)
             throw new InvalidOperationException("Settings window sizing is not fixed to measured content.");
-        if (ContentViewport.ComputedVerticalScrollBarVisibility == Visibility.Visible ||
-            ContentViewport.ScrollableHeight > 0.75)
-            throw new InvalidOperationException($"Unexpected settings scrollbar: {ContentViewport.ScrollableHeight:0.##} DIP.");
         if (FooterPanel.ActualHeight < 30 || ContentLayout.ActualWidth < 300)
             throw new InvalidOperationException("Settings content has not been measured correctly.");
-
-        System.Windows.Point footerEnd = FooterPanel.TranslatePoint(new System.Windows.Point(0, FooterPanel.ActualHeight), ContentViewport);
-        if (footerEnd.Y > ContentViewport.ActualHeight + 0.75)
-            throw new InvalidOperationException("Settings footer is clipped.");
+        // Compact desktops may scroll; the footer must remain reachable without clipping.
+        ContentViewport.ScrollToEnd();
+        UpdateLayout();
+        System.Windows.Point footerEnd = FooterPanel.TranslatePoint(
+            new System.Windows.Point(0, FooterPanel.ActualHeight), ContentViewport);
+        if (footerEnd.Y > ContentViewport.ActualHeight + 1)
+            throw new InvalidOperationException("Settings footer is not reachable.");
+        ContentViewport.ScrollToTop();
+        UpdateLayout();
         if (Icon is null)
             throw new InvalidOperationException("The native application icon was not initialized.");
     }
@@ -151,8 +179,18 @@ public partial class MainWindow : Window
 
     private void BatteryOptionsClick(object sender, RoutedEventArgs e)
     {
-        var window = new BatterySettingsWindow(settings, store, lightingChanged) { Owner = this };
+        var window = new BatterySettingsWindow(settings, store) { Owner = this };
         window.ShowDialog();
+    }
+
+    private void LightingOptionsClick(object sender, RoutedEventArgs e)
+    {
+        new LightingSettingsWindow(settings, store, () =>
+        {
+            lightingChanged();
+            UpdateLightingStatus();
+        }, lightingStatus) { Owner = this }.ShowDialog();
+        UpdateLightingStatus();
     }
 
     private void ShowCurrentClick(object sender, RoutedEventArgs e) => showCurrent();
