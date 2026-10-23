@@ -263,15 +263,52 @@ Test("Unknown and reconnect do not cause false profile alerts", () =>
 });
 Test("Controller identifiers must match across transports", () =>
 {
-    byte[] usb = { 0x12, 0x55, 0x44, 0x33, 0x22, 0x11, 0xAA };
+    byte[] usb = new byte[20];
+    usb[0] = 0x09;
+    usb[1] = 0x55;
+    usb[2] = 0x44;
+    usb[3] = 0x33;
+    usb[4] = 0x22;
+    usb[5] = 0x11;
+    usb[6] = 0xAA;
     Check(ControllerIdentity.FromUsbAddress(usb) == "AA1122334455");
     Check(ControllerIdentity.Normalize("aa:11:22:33:44:55") == "AA1122334455");
     Check(ControllerIdentity.Normalize("aa-11-22-33-44-55") == "AA1122334455");
     Check(ControllerIdentity.Normalize("AA1122334456") != ControllerIdentity.FromUsbAddress(usb));
-    Check(ControllerIdentity.FromUsbAddress(new byte[] { 0x12, 0 }) is null);
+    Check(ControllerIdentity.FromUsbAddress(new byte[] { 0x09, 0 }) is null);
+    Check(ControllerIdentity.FromUsbAddress(new byte[20]) is null);
+    byte[] wrongFeature = (byte[])usb.Clone();
+    wrongFeature[0] = 0x12;
+    Check(ControllerIdentity.FromUsbAddress(wrongFeature) is null);
+    byte[] missingAddress = (byte[])usb.Clone();
+    Array.Clear(missingAddress, 1, 6);
+    Check(ControllerIdentity.FromUsbAddress(missingAddress) is null);
     Check(ControllerIdentity.Normalize("000000000000") is null);
     Check(ControllerIdentity.Normalize("FFFFFFFFFFFF") is null);
     Check(ControllerIdentity.Normalize("BT-PATH") is null);
+});
+Test("Sony 0x09 pairing identity names survive a transport switch", () =>
+{
+    byte[] pairing = new byte[20];
+    pairing[0] = 0x09;
+    byte[] address = { 0x55, 0x44, 0x33, 0x22, 0x11, 0xAA };
+    address.CopyTo(pairing, 1);
+    string? usbIdentity = ControllerIdentity.FromUsbAddress(pairing);
+    string? btIdentity = ControllerIdentity.Normalize("aa:11:22:33:44:55");
+    Check(usbIdentity is not null && usbIdentity == btIdentity);
+
+    string directory = Path.Combine(Path.GetTempPath(), "NSEdge-identity-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var cache = new ProfileNameCache(directory);
+        var realNames = new ProfileNames("DarkSouls", "Silent Hill", null);
+        cache.Save(usbIdentity, realNames);
+        Check(Directory.GetFiles(directory, "*.json").Length == 1);
+        var reopened = new ProfileNameCache(directory);
+        Check(reopened.Read(btIdentity) == realNames);
+        Check(reopened.Read("AA1122334456") == ProfileNames.Empty);
+    }
+    finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
 });
 Test("USB name cache is restricted to the matching controller", () =>
 {

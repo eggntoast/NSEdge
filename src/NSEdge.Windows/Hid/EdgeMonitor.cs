@@ -8,6 +8,7 @@ public sealed record EdgeStatus(bool Connected, EdgeProfile Profile, ProfileName
     public byte? BatteryStatusRaw { get; init; }
     public bool NamesFromUsbCache { get; init; }
     public bool DeviceIdentityAvailable { get; init; }
+    public string IdentityStatus { get; init; } = "Not checked";
     public byte? UsbProfileCandidate { get; init; }
     public byte? BluetoothProfileCandidate { get; init; }
     public EdgeTransport? Transport { get; init; }
@@ -105,9 +106,14 @@ public sealed class EdgeMonitor : IAsyncDisposable
         Interlocked.Exchange(ref lastReportTicks, 0);
 
         bool bluetooth = transport == EdgeTransport.Bluetooth;
+        var usbIdentity = bluetooth ? (Identity: (string?)null, Status: "")
+            : NativeMethods.ReadUsbIdentity(handle);
         string? controllerId = bluetooth
             ? NativeMethods.TryReadBluetoothIdentity(handle)
-            : NativeMethods.TryReadUsbIdentity(handle);
+            : usbIdentity.Identity;
+        string identityStatus = bluetooth
+            ? controllerId is null ? "Bluetooth serial unavailable" : "Bluetooth serial available"
+            : usbIdentity.Status;
         ProfileNames names = bluetooth ? ProfileNames.Empty : ReadNames(handle);
         bool cachedNames = false;
         // Cache errors must not interrupt input monitoring.
@@ -151,6 +157,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
             UsbProfileCandidate = usbProfileCandidate,
             NamesFromUsbCache = cachedNames,
             DeviceIdentityAvailable = controllerId is not null,
+            IdentityStatus = identityStatus,
             ScanSummary = scanSummary,
             MinimalReports = minimalReports,
             BadCrcReports = badCrcReports,
