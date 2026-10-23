@@ -9,7 +9,7 @@
     <StackPanel Margin="23,22,23,22">
         <TextBlock Text="Battery settings" FontSize="22" FontWeight="SemiBold"
                    Foreground="{StaticResource PrimaryTextBrush}"/>
-        <TextBlock Text="Read-only USB telemetry and notifications"
+        <TextBlock Text="Battery popups and alerts"
                    Style="{StaticResource SecondaryLabel}" Margin="0,6,0,19"/>
         <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1" CornerRadius="10" Padding="16,9">
@@ -36,7 +36,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="Low-battery alerts" Style="{StaticResource SettingLabel}"/>
-                        <TextBlock Text="Off until hardware readings are validated"
+                        <TextBlock Text="Warn when the battery gets low"
                                    Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
                     </StackPanel>
                     <ToggleButton Grid.Column="1" x:Name="LowBatteryCheck" Style="{StaticResource SettingToggleStyle}"
