@@ -38,7 +38,9 @@ jobs:
           $changed = @(git diff-tree --no-commit-id --name-only -r $env:GITHUB_SHA | Where-Object { $_ -match '^release-requests/v[0-9]+\.[0-9]+\.[0-9]+\.request$' })
           if ($changed.Count -ne 1) { throw 'Expected exactly one release request' }
           $data = @{}
+          $notes = @()
           foreach ($line in Get-Content -LiteralPath $changed[0]) {
+            if ($line.StartsWith('# ')) { $notes += $line.Substring(2); continue }
             if ($line -match '^\s*(#|$)') { continue }
             if ($line -notmatch '^([a-z0-9_]+)=([a-zA-Z0-9.-]+)$') { throw 'Invalid release request' }
             if ($data.ContainsKey($Matches[1])) { throw 'Duplicate release field' }
@@ -55,6 +57,9 @@ jobs:
           "BUILD_RUN=$($data.build_run)" >> $env:GITHUB_ENV
           "SOURCE_ARTIFACT_ID=$($data.artifact_id)" >> $env:GITHUB_ENV
           "EXPECTED_SHA256=$($data.sha256)" >> $env:GITHUB_ENV
+          $releaseNotes = ($notes -join ' ').Trim()
+          if ($releaseNotes.Length -gt 800 -or $releaseNotes -match '[\r\n]') { throw 'Invalid release notes' }
+          if ($releaseNotes) { "RELEASE_NOTES=$releaseNotes" >> $env:GITHUB_ENV }
           git checkout --detach $data.source
           if ($LASTEXITCODE -ne 0) { throw 'Source checkout failed' }
       - uses: actions/setup-dotnet@v4
@@ -172,7 +177,7 @@ jobs:
       - name: Create prerelease
         shell: pwsh
         run: |
-          gh release create $env:RELEASE_TAG $env:ZIP_PATH artifacts/release/SHA256SUMS.txt -R $env:GITHUB_REPOSITORY --target $env:SOURCE_SHA --prerelease --title "NSEdge $env:RELEASE_TAG" --notes "Windows 11 x64 prerelease. Bluetooth profile-name caching, Fn + Square and battery readings need physical validation. The executable is unsigned."
+          gh release create $env:RELEASE_TAG $env:ZIP_PATH artifacts/release/SHA256SUMS.txt -R $env:GITHUB_REPOSITORY --target $env:SOURCE_SHA --prerelease --title "NSEdge $env:RELEASE_TAG" --notes $(if ($env:RELEASE_NOTES) { $env:RELEASE_NOTES } else { 'Experimental Windows prerelease. The executable is unsigned.' })
           if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
       - name: Verify release downloads
         shell: pwsh

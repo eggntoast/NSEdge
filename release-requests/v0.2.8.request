@@ -3,3 +3,6 @@ source=5a32234a2c369abce1c999ebbc880dffb66dbee4
 build_run=39908267312
 artifact_id=12481971571
 sha256=8846fc498a9ae06f4eb919d5eef9d56330c68056349c110d7a45687a2ecfe332
+# Manual Bluetooth name-report probe and guarded DS4Windows disconnect.
+# Both require testing on a physical DualSense Edge. No battery RGB writes or remote power-on.
+# Windows 11 x64; unsigned experimental prerelease.
