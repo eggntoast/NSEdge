@@ -73,17 +73,27 @@ public partial class App : System.Windows.Application
                         lightingSettingsTest.Show();
                         lightingSettingsTest.UpdateLayout();
                         lightingSettingsTest.AssertDarkSelector();
+                        string? previewDir = Environment.GetEnvironmentVariable("NSEDGE_PREVIEW_PATH");
+                        if (!string.IsNullOrWhiteSpace(previewDir))
+                            UiPreview.Save((FrameworkElement)lightingSettingsTest.Content,
+                                Path.Combine(Path.GetDirectoryName(Path.GetFullPath(previewDir))!, "lighting-settings.png"));
                         if (lightingSettingsTest.ActualHeight > SystemParameters.WorkArea.Height - 32)
                             throw new InvalidOperationException("Lighting settings exceeds desktop work area.");
                         var pickerTest = new ColorPickerWindow(new LightbarColor(0x75, 0xB8, 0xFF)) { Owner = lightingSettingsTest };
                         pickerTest.Show();
                         pickerTest.UpdateLayout();
+                        if (!string.IsNullOrWhiteSpace(previewDir))
+                            UiPreview.Save((FrameworkElement)pickerTest.Content,
+                                Path.Combine(Path.GetDirectoryName(Path.GetFullPath(previewDir))!, "colour-picker.png"));
                         if (pickerTest.ActualHeight > SystemParameters.WorkArea.Height - 32)
                             throw new InvalidOperationException("Colour picker exceeds desktop work area.");
                         pickerTest.Close();
                         var confirmationTest = new LightingConfirmationWindow { Owner = lightingSettingsTest };
                         confirmationTest.Show();
                         confirmationTest.UpdateLayout();
+                        if (!string.IsNullOrWhiteSpace(previewDir))
+                            UiPreview.Save((FrameworkElement)confirmationTest.Content,
+                                Path.Combine(Path.GetDirectoryName(Path.GetFullPath(previewDir))!, "lighting-confirmation.png"));
                         if (confirmationTest.ActualHeight > SystemParameters.WorkArea.Height - 32)
                             throw new InvalidOperationException("Lighting confirmation exceeds desktop work area.");
                         confirmationTest.Close();

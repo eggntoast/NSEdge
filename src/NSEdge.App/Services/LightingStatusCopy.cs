@@ -8,7 +8,7 @@ public static class LightingStatusCopy
         if (!enabled) return "Controller lighting is off";
         string value = diagnostic ?? string.Empty;
         if (value.Contains("Other controller software", StringComparison.OrdinalIgnoreCase))
-            return "Paused — another controller app is controlling the lights";
+            return "Paused — DS4Windows or another controller app is running";
         if (value.Contains("command sent", StringComparison.OrdinalIgnoreCase))
             return "Colour sent — check the controller";
         if (value.Contains("Waiting for a controller", StringComparison.OrdinalIgnoreCase))
