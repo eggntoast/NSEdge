@@ -29,7 +29,9 @@ public sealed class EdgeMonitor : IAsyncDisposable
     private long lastReportTicks;
     private ProfileNameCache? nameCache;
     private string? controllerIdentity;
+    private string? activeDevicePath;
     public string? CurrentControllerIdentity => Volatile.Read(ref controllerIdentity);
+    public string? CurrentDevicePath => Volatile.Read(ref activeDevicePath);
 
     public event Action<EdgeStatus>? Updated;
     public event Action<EdgeBattery>? PsPressed;
@@ -109,6 +111,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
         Interlocked.Exchange(ref lastReportTicks, 0);
 
         bool bluetooth = transport == EdgeTransport.Bluetooth;
+        Volatile.Write(ref activeDevicePath, device.Path);
         var usbIdentity = bluetooth ? (Identity: (string?)null, Status: "")
             : NativeMethods.ReadUsbIdentity(handle);
         string? controllerId = bluetooth
@@ -297,6 +300,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
         finally
         {
             Volatile.Write(ref controllerIdentity, null);
+            Volatile.Write(ref activeDevicePath, null);
             Publish(EdgeStatus.Disconnected with { ScanSummary = scanSummary });
         }
     }

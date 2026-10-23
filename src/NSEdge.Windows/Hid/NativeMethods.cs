@@ -214,6 +214,14 @@ internal static partial class NativeMethods
 
     public static int GetInputReportLength(SafeFileHandle handle) =>
         ReadCaps(handle).InputReportByteLength;
+
+    public static int GetOutputReportLength(string path)
+    {
+        using SafeFileHandle handle = OpenMetadata(path, 0, FileShare.ReadWrite, 0, FileMode.Open, 0, 0);
+        if (handle.IsInvalid)
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Controller HID metadata is unavailable");
+        return ReadCaps(handle).OutputReportByteLength;
+    }
 }
 
 internal sealed record HidDevice(string Path, EdgeTransport Transport,
