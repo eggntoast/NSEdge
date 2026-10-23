@@ -195,6 +195,69 @@ Test("Identify Edge HID collections by attributes", () =>
     Check(EdgeHidIdentity.Match(bt with { InputReportLength = 65 }) is null);
     Check(EdgeHidIdentity.Match(usb with { Usage = 0x04 }) == EdgeTransport.Usb);
 });
+Test("Bluetooth values map through the shared Edge decoder", () =>
+{
+    foreach (var (code, expected) in new (byte, EdgeProfile)[] {
+        (0x1C, EdgeProfile.Default), (0x4C, EdgeProfile.Circle),
+        (0x3C, EdgeProfile.Cross), (0x00, EdgeProfile.Unknown), (0xFF, EdgeProfile.Unknown)
+    })
+    {
+        Check(EdgeProfileDecoder.FromCode(code) == expected);
+        Check(Decode(code) == expected);
+        byte[] packet = FullBluetoothReport();
+        packet[50] = code;
+        uint crc = BluetoothInputDecoder.CalculateInputCrc(packet.AsSpan(0, 74));
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(packet.AsSpan(74, 4), crc);
+        Check(BluetoothInputDecoder.Decode(packet, out BluetoothInput input) == BluetoothReportKind.Extended);
+        Check(EdgeProfileDecoder.FromCode(input.EdgeProfileCandidate) == expected);
+        packet[50] ^= 0x01;
+        Check(BluetoothInputDecoder.Decode(packet, out _) == BluetoothReportKind.Invalid);
+    }
+});
+Test("Observed Bluetooth code transitions are debounced once", () =>
+{
+    // Codes came from physical NSEdge logs, but packets are synthetic.
+    var debounce = new ProfileDebouncer();
+    var tracker = new ProfileNotificationTracker();
+    bool initialized = false;
+    foreach (byte code in new byte[] { 0x1C, 0x4C, 0x1C, 0x3C, 0x1C })
+    {
+        EdgeProfile next = EdgeProfileDecoder.FromCode(code);
+        for (int i = 0; i < 11; i++)
+        {
+            Check(!debounce.Observe(next));
+            Check(!tracker.Observe(true, debounce.Current));
+        }
+        Check(debounce.Observe(next));
+        bool notify = tracker.Observe(true, debounce.Current);
+        if (!initialized)
+        {
+            Check(!notify); // Connecting does not cause an automatic popup.
+            initialized = true;
+        }
+        else Check(notify);
+        for (int i = 0; i < 30; i++)
+        {
+            Check(!debounce.Observe(next));
+            Check(!tracker.Observe(true, debounce.Current));
+        }
+    }
+});
+Test("Unknown and reconnect do not cause false profile alerts", () =>
+{
+    var tracker = new ProfileNotificationTracker();
+    Check(!tracker.Observe(false, EdgeProfile.Unknown));
+    Check(!tracker.Observe(true, EdgeProfile.Unknown));
+    Check(!tracker.Observe(true, EdgeProfile.Default));
+    Check(!tracker.Observe(true, EdgeProfile.Default));
+    Check(tracker.Observe(true, EdgeProfile.Circle));
+    Check(!tracker.Observe(true, EdgeProfile.Unknown));
+    Check(!tracker.Observe(true, EdgeProfile.Circle));
+    Check(tracker.Observe(true, EdgeProfile.Cross));
+    Check(!tracker.Observe(false, EdgeProfile.Unknown));
+    Check(!tracker.Observe(true, EdgeProfile.Cross));
+    Check(tracker.Observe(true, EdgeProfile.Default));
+});
 Console.WriteLine($"Passed {passed} protocol tests.");
 
 void Test(string name, Action action)

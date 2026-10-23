@@ -20,14 +20,16 @@ public static class EdgeProfileDecoder
         if (report.Length < MinimumReportLength || report[0] != 0x01)
             return EdgeProfile.Unknown;
 
-        return report[ProfileByteIndex] switch
-        {
-            0x1C => EdgeProfile.Default,
-            0x4C => EdgeProfile.Circle,
-            0x3C => EdgeProfile.Cross,
-            _ => EdgeProfile.Unknown
-        };
+        return FromCode(report[ProfileByteIndex]);
     }
+
+    public static EdgeProfile FromCode(byte code) => code switch
+    {
+        0x1C => EdgeProfile.Default,
+        0x4C => EdgeProfile.Circle,
+        0x3C => EdgeProfile.Cross,
+        _ => EdgeProfile.Unknown
+    };
 
     public static string Shortcut(EdgeProfile profile) => profile switch
     {

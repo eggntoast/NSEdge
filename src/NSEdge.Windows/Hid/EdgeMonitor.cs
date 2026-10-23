@@ -116,7 +116,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
         string detail = bluetooth ? "Bluetooth connected; waiting for extended input reports"
                                   : "USB connected";
 
-        EdgeStatus Snapshot(string reason) => new(true, bluetooth ? EdgeProfile.Unknown : debounce.Current,
+        EdgeStatus Snapshot(string reason) => new(true, debounce.Current,
             names, reports, reason, battery)
         {
             Transport = transport,
@@ -177,13 +177,14 @@ public sealed class EdgeMonitor : IAsyncDisposable
                     }
 
                     awaitingExtended = false;
-                    detail = "Bluetooth input active; onboard profile mapping unverified";
+                    detail = "Bluetooth input active";
                     psDown = input.PsPressed;
                     batteryChanged = battery != input.Battery;
                     battery = input.Battery;
                     batteryStatusRaw = input.RawBatteryStatus;
                     btCandidateChanged = btCandidateObserver.Observe(input.EdgeProfileCandidate);
                     profileCandidate = btCandidateObserver.Current;
+                    profileChanged = debounce.Observe(EdgeProfileDecoder.FromCode(input.EdgeProfileCandidate));
                 }
                 else
                 {
