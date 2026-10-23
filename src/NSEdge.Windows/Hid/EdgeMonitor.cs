@@ -7,6 +7,7 @@ public sealed record EdgeStatus(bool Connected, EdgeProfile Profile, ProfileName
 {
     public byte? BatteryStatusRaw { get; init; }
     public bool NamesFromUsbCache { get; init; }
+    public bool DeviceIdentityAvailable { get; init; }
     public byte? UsbProfileCandidate { get; init; }
     public byte? BluetoothProfileCandidate { get; init; }
     public EdgeTransport? Transport { get; init; }
@@ -149,6 +150,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
             BluetoothProfileCandidate = profileCandidate,
             UsbProfileCandidate = usbProfileCandidate,
             NamesFromUsbCache = cachedNames,
+            DeviceIdentityAvailable = controllerId is not null,
             ScanSummary = scanSummary,
             MinimalReports = minimalReports,
             BadCrcReports = badCrcReports,

@@ -27,6 +27,7 @@ public partial class App : System.Windows.Application
     private AppSettings? settings;
     private readonly SettingsStore store = new();
     private EdgeProfile lastProfile;
+    private byte? lastUsbProfileCode;
     private readonly ProfileNotificationTracker profileNotifications = new();
     public bool IsExiting { get; private set; }
 
@@ -178,6 +179,15 @@ public partial class App : System.Windows.Application
             }
             if (status.Transport != EdgeTransport.Bluetooth)
                 lastBtProfileCandidate = null;
+            if (status.Transport == EdgeTransport.Usb &&
+                status.UsbProfileCandidate != lastUsbProfileCode)
+            {
+                lastUsbProfileCode = status.UsbProfileCandidate;
+                if (lastUsbProfileCode is byte code)
+                    Log.Write($"USB profile code: 0x{code:X2}");
+            }
+            if (status.Transport != EdgeTransport.Usb)
+                lastUsbProfileCode = null;
 
             bool announceProfile = profileNotifications.Observe(status.Connected, status.Profile);
             if (status.Profile != lastProfile)
@@ -237,6 +247,7 @@ public partial class App : System.Windows.Application
             $"Battery status byte {(status.Transport == EdgeTransport.Bluetooth ? 54 : 53)}: {(status.BatteryStatusRaw is byte raw ? $"0x{raw:X2}" : "Unavailable")}\n" +
             $"BT profile code (byte 50): {(status.BluetoothProfileCandidate is byte candidate ? $"0x{candidate:X2}" : "Unavailable")}\n" +
             $"USB profile code (byte 49): {(status.UsbProfileCandidate is byte usbCode ? $"0x{usbCode:X2}" : "Unavailable")}\n" +
+            $"Controller identity available: {status.DeviceIdentityAvailable}\n" +
             $"Names from USB cache: {status.NamesFromUsbCache}\n" +
             $"Reports: {status.ReportCount}; BT minimal: {status.MinimalReports}; bad CRC: {status.BadCrcReports}\n" +
             $"Last input (UTC): {status.LastInputUtc?.ToString("O") ?? "None"}\n" +
