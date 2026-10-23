@@ -27,7 +27,7 @@ public partial class ColorPickerWindow : Window
 
     private void SetPreview(LightbarColor value)
     {
-        ColorPreview.Background = new SolidColorBrush(Color.FromRgb(value.Red, value.Green, value.Blue));
+        ColorPreview.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(value.Red, value.Green, value.Blue));
         RedValue.Text = value.Red.ToString();
         GreenValue.Text = value.Green.ToString();
         BlueValue.Text = value.Blue.ToString();

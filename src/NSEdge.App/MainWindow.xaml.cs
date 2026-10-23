@@ -86,7 +86,7 @@ public partial class MainWindow : Window
             : null;
         LightingPreviewDot.Fill = preview is LightbarColor c
             ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(c.Red, c.Green, c.Blue))
-            : (Brush)FindResource("BorderBrush");
+            : (System.Windows.Media.Brush)FindResource("BorderBrush");
         LightingPreviewDot.ToolTip = preview is null ? "No lighting preview" : "Selected colour preview, not a hardware confirmation";
     }
 

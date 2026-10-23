@@ -79,7 +79,7 @@ public partial class LightingSettingsWindow : Window
     {
         foreach (var (_, (input, swatch)) in ColorControls())
             if (LightbarColor.TryParse(input.Text, out var parsed))
-                swatch.Background = new SolidColorBrush(Color.FromRgb(parsed.Red, parsed.Green, parsed.Blue));
+                swatch.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(parsed.Red, parsed.Green, parsed.Blue));
     }
 
     private void PickColorClick(object sender, RoutedEventArgs e)
