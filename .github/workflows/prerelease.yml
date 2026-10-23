@@ -1,0 +1,88 @@
+name: Publish prerelease
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Approved version
+        type: choice
+        options:
+          - v0.2.2
+        required: true
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_SHA: 6bef963280321dc593b1e68b5ed036c84622e1d0
+      BUILD_RUN: '39873803975'
+      RELEASE_VERSION: v0.2.2
+      EXPECTED_SHA256: c03e9ad58e0bbf570c741beeaf2e6f57bff263cf4439afd3a7d04e5c6b6365db
+    steps:
+      - name: Check approved source and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.version }}" = "$RELEASE_VERSION"
+          run_sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq .head_sha)
+          conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq .conclusion)
+          test "$run_sha" = "$SOURCE_SHA"
+          test "$conclusion" = success
+          if gh release view "$RELEASE_VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $RELEASE_VERSION already exists"; exit 1
+          fi
+          if tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_VERSION" --jq .object.sha 2>/dev/null); then
+            test "$tag_sha" = "$SOURCE_SHA" || { echo "Existing tag targets a different commit"; exit 1; }
+          fi
+
+      - name: Retrieve verified artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh run download "$BUILD_RUN" -R "$GITHUB_REPOSITORY" -n "NSEdge-v0.2.2-win-x64.zip" -D dist
+          gh run download "$BUILD_RUN" -R "$GITHUB_REPOSITORY" -n "SHA256SUMS.txt" -D dist
+
+      - name: Verify archive and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          echo "$EXPECTED_SHA256  NSEdge-v0.2.2-win-x64.zip" | sha256sum -c -
+          sha256sum -c SHA256SUMS.txt
+          unzip -t NSEdge-v0.2.2-win-x64.zip >/dev/null
+          unzip -Z -1 NSEdge-v0.2.2-win-x64.zip > entries.txt
+          grep -qx 'NSEdge/NSEdge.exe' entries.txt
+          if grep -Ev '^NSEdge/' entries.txt | grep -q .; then
+            echo 'Unexpected archive root'; exit 1
+          fi
+          if grep -Ei '\.pdb$|NSEdge-win-x64/' entries.txt; then
+            echo 'Debug symbols or old application root inside ZIP'; exit 1
+          fi
+          rm entries.txt
+
+      - name: Publish approved prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_VERSION" \
+            dist/NSEdge-v0.2.2-win-x64.zip dist/SHA256SUMS.txt \
+            -R "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" \
+            --prerelease --title "NSEdge v0.2.2" \
+            --notes "USB profile monitoring, battery popups and experimental Bluetooth support. Bluetooth input has not been verified on physical hardware. This Windows build is unsigned."
+
+      - name: Verify published assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p published
+          gh release download "$RELEASE_VERSION" -R "$GITHUB_REPOSITORY" \
+            -p NSEdge-v0.2.2-win-x64.zip -p SHA256SUMS.txt -D published
+          cd published
+          echo "$EXPECTED_SHA256  NSEdge-v0.2.2-win-x64.zip" | sha256sum -c -
+          sha256sum -c SHA256SUMS.txt
