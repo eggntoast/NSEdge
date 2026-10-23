@@ -30,9 +30,12 @@
    <ComboBox x:Name="ModeSelector" Style="{StaticResource DarkComboBoxStyle}"
              Margin="0,0,0,15" SelectionChanged="ModeChanged"
              AutomationProperties.Name="Lighting style">
-     <ComboBoxItem Content="Battery level" Style="{StaticResource DarkComboBoxItemStyle}"/>
-     <ComboBoxItem Content="Battery gradient" Style="{StaticResource DarkComboBoxItemStyle}"/>
-     <ComboBoxItem Content="Single colour" Style="{StaticResource DarkComboBoxItemStyle}"/>
+     <ComboBoxItem Content="Battery level" Style="{StaticResource DarkComboBoxItemStyle}"
+                   Foreground="{StaticResource PrimaryTextBrush}" Background="{StaticResource SurfaceBrush}"/>
+     <ComboBoxItem Content="Battery gradient" Style="{StaticResource DarkComboBoxItemStyle}"
+                   Foreground="{StaticResource PrimaryTextBrush}" Background="{StaticResource SurfaceBrush}"/>
+     <ComboBoxItem Content="Single colour" Style="{StaticResource DarkComboBoxItemStyle}"
+                   Foreground="{StaticResource PrimaryTextBrush}" Background="{StaticResource SurfaceBrush}"/>
    </ComboBox>
 
    <StackPanel x:Name="BatteryPalettePanel">
