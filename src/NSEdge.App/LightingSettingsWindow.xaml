@@ -1,0 +1,72 @@
+<Window x:Class="NSEdge.App.LightingSettingsWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Controller lighting · NSEdge" Width="488" SizeToContent="Height"
+ ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
+ Background="{StaticResource BaseBrush}" Foreground="{StaticResource PrimaryTextBrush}"
+ FontFamily="Segoe UI" UseLayoutRounding="True" SnapsToDevicePixels="True"
+ SourceInitialized="OnSourceInitialized">
+ <Window.Resources>
+   <Style TargetType="TextBox">
+     <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
+     <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+     <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+     <Setter Property="BorderThickness" Value="1"/>
+     <Setter Property="Padding" Value="8,5"/>
+     <Setter Property="Height" Value="30"/>
+     <Setter Property="FontFamily" Value="Consolas"/>
+     <Setter Property="FontSize" Value="12"/>
+   </Style>
+ </Window.Resources>
+ <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+ <StackPanel Margin="24,20">
+   <TextBlock Text="Controller lighting" FontSize="22" FontWeight="SemiBold"/>
+   <TextBlock Text="Native DualSense Edge RGB lightbar" Style="{StaticResource SecondaryLabel}" Margin="0,5,0,16"/>
+   <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+    BorderThickness="1" CornerRadius="10" Padding="16,11" Margin="0,0,0,16">
+     <Grid>
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <StackPanel>
+         <TextBlock Text="Enable native lighting" Style="{StaticResource SettingLabel}"/>
+         <TextBlock Text="Off by default · pauses while DS4Windows runs" Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
+       </StackPanel>
+       <ToggleButton x:Name="EnabledToggle" Grid.Column="1" Style="{StaticResource SettingToggleStyle}"
+         VerticalAlignment="Center" AutomationProperties.Name="Enable native lightbar output"/>
+     </Grid>
+   </Border>
+   <TextBlock Text="Mode" Style="{StaticResource SettingLabel}" Margin="0,0,0,5"/>
+   <ComboBox x:Name="ModeSelector" Height="32" Background="{StaticResource SurfaceBrush}"
+     Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,14" AutomationProperties.Name="Lightbar mode">
+     <ComboBoxItem Content="Battery bands"/>
+     <ComboBoxItem Content="Battery gradient"/>
+     <ComboBoxItem Content="Static colour"/>
+   </ComboBox>
+   <TextBlock Text="Colours (HEX)" Style="{StaticResource SettingLabel}" Margin="0,0,0,8"/>
+   <Grid>
+     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,10"><TextBlock Text="Critical" Style="{StaticResource SecondaryLabel}" Margin="0,0,0,3"/><TextBox x:Name="CriticalText" MaxLength="7"/></StackPanel>
+<StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,10"><TextBlock Text="Low" Style="{StaticResource SecondaryLabel}" Margin="0,0,0,3"/><TextBox x:Name="LowText" MaxLength="7"/></StackPanel>
+<StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,0,10"><TextBlock Text="Medium" Style="{StaticResource SecondaryLabel}" Margin="0,0,0,3"/><TextBox x:Name="MediumText" MaxLength="7"/></StackPanel>
+<StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,10"><TextBlock Text="High" Style="{StaticResource SecondaryLabel}" Margin="0,0,0,3"/><TextBox x:Name="HighText" MaxLength="7"/></StackPanel>
+<StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,0,10"><TextBlock Text="Charging" Style="{StaticResource SecondaryLabel}" Margin="0,0,0,3"/><TextBox x:Name="ChargingText" MaxLength="7"/></StackPanel>
+<StackPanel Grid.Row="2" Grid.Column="2" Margin="0,0,0,10"><TextBlock Text="Fully charged" Style="{StaticResource SecondaryLabel}" Margin="0,0,0,3"/><TextBox x:Name="FullText" MaxLength="7"/></StackPanel>
+<StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,0,10"><TextBlock Text="Static" Style="{StaticResource SecondaryLabel}" Margin="0,0,0,3"/><TextBox x:Name="StaticText" MaxLength="7"/></StackPanel>
+
+   </Grid>
+   <TextBlock Text="Battery threshold boundaries (%)" Style="{StaticResource SettingLabel}" Margin="0,2,0,8"/>
+   <Grid Margin="0,0,0,12">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <StackPanel Grid.Column="0"><TextBlock Text="Critical below" Style="{StaticResource SecondaryLabel}" Margin="0,0,0,3"/><TextBox x:Name="CriticalBelowText" MaxLength="3"/></StackPanel>
+     <StackPanel Grid.Column="2"><TextBlock Text="Low below" Style="{StaticResource SecondaryLabel}" Margin="0,0,0,3"/><TextBox x:Name="LowBelowText" MaxLength="3"/></StackPanel>
+     <StackPanel Grid.Column="4"><TextBlock Text="Medium below" Style="{StaticResource SecondaryLabel}" Margin="0,0,0,3"/><TextBox x:Name="MediumBelowText" MaxLength="3"/></StackPanel>
+   </Grid>
+   <TextBlock Text="Requires live controller input. Other controller managers block native output. Lightbar colours may persist until reconnect."
+     Style="{StaticResource SecondaryLabel}" TextWrapping="Wrap" Margin="0,0,0,15"/>
+   <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+     <Button Content="Cancel" Style="{StaticResource ActionButtonStyle}" Margin="0,0,8,0" Click="CancelClick"/>
+     <Button Content="Apply" Width="92" Style="{StaticResource PrimaryButtonStyle}" Click="ApplyClick"/>
+   </StackPanel>
+ </StackPanel>
+ </ScrollViewer>
+</Window>
