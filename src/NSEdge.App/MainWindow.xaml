@@ -167,7 +167,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Name="VersionText" Text="Developed by NS" Style="{StaticResource SecondaryLabel}"/>
-                    <TextBlock Text="Read-only controller monitoring" Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
+                    <TextBlock Text="Controller profiles and notifications" Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Content="Refresh names" Style="{StaticResource ActionButtonStyle}" Margin="0,0,8,0"
