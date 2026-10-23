@@ -8,13 +8,15 @@ public partial class BatterySettingsWindow : Window
 {
     private readonly AppSettings settings;
     private readonly SettingsStore store;
+    private readonly Action lightingChanged;
     private bool initializing = true;
 
-    public BatterySettingsWindow(AppSettings settings, SettingsStore store)
+    public BatterySettingsWindow(AppSettings settings, SettingsStore store, Action lightingChanged)
     {
         InitializeComponent();
         this.settings = settings;
         this.store = store;
+        this.lightingChanged = lightingChanged;
         PsBatteryCheck.IsChecked = settings.ShowBatteryOnPs;
         LowBatteryCheck.IsChecked = settings.ShowLowBatteryAlerts;
         ThresholdSlider.Value = settings.LowBatteryThresholdPercent;
@@ -41,6 +43,11 @@ public partial class BatterySettingsWindow : Window
         settings.LowBatteryThresholdPercent = (int)ThresholdSlider.Value;
         ThresholdText.Text = $"{settings.LowBatteryThresholdPercent}%";
         store.Save(settings);
+    }
+
+    private void LightingClick(object sender, RoutedEventArgs e)
+    {
+        new LightingSettingsWindow(settings, store, lightingChanged) { Owner = this }.ShowDialog();
     }
 
     private void DoneClick(object sender, RoutedEventArgs e) => Close();

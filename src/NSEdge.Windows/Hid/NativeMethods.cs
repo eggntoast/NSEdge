@@ -214,6 +214,25 @@ internal static partial class NativeMethods
 
     public static int GetInputReportLength(SafeFileHandle handle) =>
         ReadCaps(handle).InputReportByteLength;
+
+    public static int GetOutputReportLength(string path, EdgeTransport expectedTransport)
+    {
+        using SafeFileHandle handle = OpenMetadata(path, 0, FileShare.ReadWrite, 0, FileMode.Open, 0, 0);
+        if (handle.IsInvalid)
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Controller HID metadata is unavailable");
+
+        var attributes = new HidAttributes { Size = Marshal.SizeOf<HidAttributes>() };
+        if (!HidD_GetAttributes(handle, ref attributes))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot verify controller identity");
+
+        HidCaps caps = ReadCaps(handle);
+        var descriptor = new EdgeHidDescriptor(attributes.VendorId, attributes.ProductId,
+            caps.UsagePage, caps.Usage, caps.InputReportByteLength);
+        if (EdgeHidIdentity.Match(descriptor) != expectedTransport)
+            throw new IOException("Output device is not the selected DualSense Edge HID interface");
+
+        return caps.OutputReportByteLength;
+    }
 }
 
 internal sealed record HidDevice(string Path, EdgeTransport Transport,
