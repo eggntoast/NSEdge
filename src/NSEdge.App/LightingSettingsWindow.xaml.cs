@@ -34,6 +34,7 @@ public partial class LightingSettingsWindow : Window
 
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
+        MaxHeight = Math.Max(300, SystemParameters.WorkArea.Height - 40);
         WindowAppearance.Apply(new WindowInteropHelper(this).Handle);
         using System.Drawing.Icon? icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
         if (icon is not null)
