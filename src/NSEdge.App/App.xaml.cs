@@ -27,6 +27,7 @@ public partial class App : System.Windows.Application
     private AppSettings? settings;
     private readonly SettingsStore store = new();
     private EdgeProfile lastProfile;
+    private readonly ProfileNotificationTracker profileNotifications = new();
     public bool IsExiting { get; private set; }
 
     private void OnStart(object sender, StartupEventArgs e)
@@ -173,18 +174,19 @@ public partial class App : System.Windows.Application
             {
                 lastBtProfileCandidate = status.BluetoothProfileCandidate;
                 if (lastBtProfileCandidate is byte rawCandidate)
-                    Log.Write($"Bluetooth Edge profile candidate (unverified): 0x{rawCandidate:X2}");
+                    Log.Write($"Bluetooth profile code: 0x{rawCandidate:X2}");
             }
             if (status.Transport != EdgeTransport.Bluetooth)
                 lastBtProfileCandidate = null;
 
+            bool announceProfile = profileNotifications.Observe(status.Connected, status.Profile);
             if (status.Profile != lastProfile)
             {
                 Log.Write($"Profile: {status.Profile} ({status.Names.DisplayName(status.Profile)}), reports: {status.ReportCount}");
                 lastProfile = status.Profile;
-                if (status.Profile != EdgeProfile.Unknown && settings?.ShowNotifications == true)
-                    Announce(status);
             }
+            if (announceProfile && settings?.ShowNotifications == true)
+                Announce(status);
         }, DispatcherPriority.Background);
     }
 
@@ -233,7 +235,7 @@ public partial class App : System.Windows.Application
             $"Square: {status.Names.Square ?? "(not read)"}\n" +
             $"Battery: {status.Battery.Description}\n" +
             $"Battery status byte {(status.Transport == EdgeTransport.Bluetooth ? 54 : 53)}: {(status.BatteryStatusRaw is byte raw ? $"0x{raw:X2}" : "Unavailable")}\n" +
-            $"BT Edge candidate byte 50 (unverified): {(status.BluetoothProfileCandidate is byte candidate ? $"0x{candidate:X2}" : "Unavailable")}\n" +
+            $"BT profile code (byte 50): {(status.BluetoothProfileCandidate is byte candidate ? $"0x{candidate:X2}" : "Unavailable")}\n" +
             $"Reports: {status.ReportCount}; BT minimal: {status.MinimalReports}; bad CRC: {status.BadCrcReports}\n" +
             $"Last input (UTC): {status.LastInputUtc?.ToString("O") ?? "None"}\n" +
             $"Discovery: {status.ScanSummary}\nStatus: {status.Detail}\nLog: {Log.Path}",
