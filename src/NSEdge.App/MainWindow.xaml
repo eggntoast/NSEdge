@@ -1,180 +1,148 @@
 <Window x:Class="NSEdge.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="NSEdge" Width="514" SizeToContent="Height" ResizeMode="NoResize"
+        Title="NSEdge" Width="520" SizeToContent="Height" ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen" Background="{StaticResource BaseBrush}"
         Foreground="{StaticResource PrimaryTextBrush}" FontFamily="Segoe UI"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
         SourceInitialized="OnSourceInitialized" Closing="OnClosing" Loaded="OnLoaded">
-    <ScrollViewer x:Name="ContentViewport" VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled" Focusable="False">
-        <Grid x:Name="ContentLayout" Margin="24,18,24,20">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="17"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="17"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="6"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="13"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+  <ScrollViewer x:Name="ContentViewport" VerticalScrollBarVisibility="Auto"
+                HorizontalScrollBarVisibility="Disabled" Focusable="False">
+    <StackPanel x:Name="ContentLayout" Margin="24,18,24,20">
+      <Grid Height="48" Margin="0,0,0,18">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="44"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource RaisedBrush}"
+                VerticalAlignment="Center" HorizontalAlignment="Left">
+          <Viewbox Width="29" Height="29">
+            <Canvas Width="48" Height="48">
+              <Path Data="M 32,9 H 17 C 13,9 12,12 12,17 V 31 C 12,35 14,38 18,38 H 32 M 17,24 H 31"
+                    Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="4" StrokeLineJoin="Round"
+                    StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+              <Path Data="M 28,17 L 35,24 L 28,31" Stroke="{StaticResource AccentBrush}" StrokeThickness="4"
+                    StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+            </Canvas>
+          </Viewbox>
+        </Border>
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="9,0,0,0">
+          <TextBlock Text="NSEdge" FontSize="21" FontWeight="SemiBold"/>
+          <TextBlock Text="DualSense Edge" Style="{StaticResource SecondaryLabel}" Margin="0,1,0,0"/>
+        </StackPanel>
+        <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" CornerRadius="12"
+                VerticalAlignment="Center" Padding="11,6">
+          <StackPanel Orientation="Horizontal">
+            <Ellipse Name="StatusDot" Width="7" Height="7" Fill="{StaticResource OfflineBrush}" VerticalAlignment="Center"/>
+            <TextBlock Name="ConnectionBadgeText" Margin="7,0,0,0" Text="Searching" FontSize="12"
+                       Foreground="{StaticResource SecondaryTextBrush}"/>
+          </StackPanel>
+        </Border>
+      </Grid>
 
-            <Grid Grid.Row="0" Height="44">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="42"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource RaisedBrush}"
-                        VerticalAlignment="Center" HorizontalAlignment="Left">
-                    <Viewbox Width="29" Height="29" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <Canvas Width="48" Height="48">
-                            <Path Data="M 32,9 H 17 C 13,9 12,12 12,17 V 31 C 12,35 14,38 18,38 H 32 M 17,24 H 31"
-                                  Stroke="{StaticResource PrimaryTextBrush}" StrokeThickness="4"
-                                  StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                            <Path Data="M 28,17 L 35,24 L 28,31" Stroke="{StaticResource AccentBrush}" StrokeThickness="4"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-                        </Canvas>
-                    </Viewbox>
-                </Border>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0">
-                    <TextBlock Text="NSEdge" FontSize="21" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}"/>
-                    <TextBlock Text="DualSense Edge companion" Style="{StaticResource SecondaryLabel}" Margin="0,1,0,0"/>
-                </StackPanel>
-                <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" CornerRadius="11"
-                        VerticalAlignment="Center" Padding="10,6">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Name="StatusDot" Width="7" Height="7" Fill="{StaticResource OfflineBrush}" VerticalAlignment="Center"/>
-                        <TextBlock Name="ConnectionBadgeText" Margin="7,0,0,0" Text="Searching" FontSize="11"
-                                   Foreground="{StaticResource SecondaryTextBrush}" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Border>
-            </Grid>
-
-            <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1" CornerRadius="12" Padding="17,15">
-                <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                    <TextBlock Grid.Row="0" Text="ACTIVE ONBOARD PROFILE" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{StaticResource SecondaryTextBrush}"/>
-                    <Grid Grid.Row="1" Margin="0,9,0,7">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Name="ProfileText" Text="Waiting for input" FontSize="21" FontWeight="SemiBold"
-                                   Foreground="{StaticResource PrimaryTextBrush}" VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"
-                                   ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
-                        <Border Grid.Column="1" Margin="12,0,0,0" Padding="9,5" CornerRadius="7"
-                                Background="{StaticResource RaisedBrush}" VerticalAlignment="Center">
-                            <TextBlock Name="ShortcutText" Text="—" FontSize="11"
-                                       Foreground="{StaticResource PrimaryTextBrush}"/>
-                        </Border>
-                    </Grid>
-                    <TextBlock Grid.Row="2" Name="ConnectionText" Text="Searching for DualSense Edge over USB"
-                               Style="{StaticResource SecondaryLabel}" TextTrimming="CharacterEllipsis"
-                               ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
-                    <TextBlock Grid.Row="3" Name="BatteryText" Text="Battery unavailable"
-                               Style="{StaticResource SecondaryLabel}" Margin="0,5,0,0"
-                               TextTrimming="CharacterEllipsis"
-                               ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
-                </Grid>
+      <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
+              BorderThickness="1" CornerRadius="12" Padding="17,15" Margin="0,0,0,17">
+        <StackPanel>
+          <TextBlock Text="ACTIVE PROFILE" Style="{StaticResource EyebrowLabel}"/>
+          <Grid Margin="0,9,0,7">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <TextBlock Name="ProfileText" Text="Waiting for controller" FontSize="21" FontWeight="SemiBold"
+                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+            <Border Grid.Column="1" Margin="12,0,0,0" Padding="10,6" CornerRadius="7"
+                    Background="{StaticResource RaisedBrush}" VerticalAlignment="Center">
+              <TextBlock Name="ShortcutText" Text="—" FontSize="12"/>
             </Border>
+          </Grid>
+          <TextBlock Name="ConnectionText" Text="Looking for DualSense Edge"
+                     Style="{StaticResource SecondaryLabel}" TextTrimming="CharacterEllipsis"
+                     ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+          <TextBlock Name="BatteryText" Text="Battery unavailable" Style="{StaticResource SecondaryLabel}"
+                     Margin="0,5,0,0" TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+      </Border>
 
-            <TextBlock Grid.Row="4" Text="PREFERENCES" FontSize="11" FontWeight="SemiBold"
-                       Foreground="{StaticResource SecondaryTextBrush}" />
+      <TextBlock Text="LIGHTING" Style="{StaticResource EyebrowLabel}" Margin="0,0,0,6"/>
+      <Grid MinHeight="70" Margin="0,0,0,11">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
+          <StackPanel Orientation="Horizontal">
+            <Ellipse x:Name="LightingPreviewDot" Width="12" Height="12" Fill="{StaticResource BorderBrush}"
+                     VerticalAlignment="Center" Margin="0,0,9,0"/>
+            <TextBlock x:Name="LightingModeText" Text="Off" Style="{StaticResource SettingLabel}"/>
+          </StackPanel>
+          <TextBlock x:Name="LightingStatusText" Text="Controller lighting is off"
+                     Style="{StaticResource SecondaryLabel}" Margin="0,5,0,0"
+                     TextWrapping="Wrap" MaxWidth="285"/>
+        </StackPanel>
+        <Button Grid.Column="1" Content="Customize" Style="{StaticResource ActionButtonStyle}"
+                VerticalAlignment="Center" Click="LightingOptionsClick"
+                AutomationProperties.Name="Customize controller lighting"/>
+      </Grid>
+      <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,15"/>
 
-            <Grid Grid.Row="6" Height="58">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="Profile notifications" Style="{StaticResource SettingLabel}"/>
-                    <TextBlock Text="Notify when an onboard profile changes"
-                               Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
-                </StackPanel>
-                <ToggleButton Grid.Column="1" Name="NotificationsCheck" Style="{StaticResource SettingToggleStyle}"
-                              AutomationProperties.Name="Profile notifications" VerticalAlignment="Center"
-                              Checked="SettingChanged" Unchecked="SettingChanged"/>
-            </Grid>
-            <Grid Grid.Row="7" Height="58">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="Start with Windows" Style="{StaticResource SettingLabel}"/>
-                    <TextBlock Text="Run NSEdge quietly in the system tray"
-                               Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
-                </StackPanel>
-                <ToggleButton Grid.Column="1" Name="AutostartCheck" Style="{StaticResource SettingToggleStyle}"
-                              AutomationProperties.Name="Start NSEdge with Windows" VerticalAlignment="Center"
-                              Checked="AutostartChanged" Unchecked="AutostartChanged"/>
-            </Grid>
+      <TextBlock Text="NOTIFICATIONS" Style="{StaticResource EyebrowLabel}" Margin="0,0,0,7"/>
+      <Grid Height="62">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="Profile change alerts" Style="{StaticResource SettingLabel}"/>
+          <TextBlock Text="Show a popup when you switch profiles" Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
+        </StackPanel>
+        <ToggleButton Grid.Column="1" Name="NotificationsCheck" Style="{StaticResource SettingToggleStyle}"
+                      AutomationProperties.Name="Show profile change alerts" VerticalAlignment="Center"
+                      Checked="SettingChanged" Unchecked="SettingChanged"/>
+      </Grid>
+      <Grid Height="57" Margin="0,0,0,13">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock Text="Popup duration" Style="{StaticResource SettingLabel}"/>
+        <TextBlock Grid.Column="1" Name="DurationText" Foreground="{StaticResource SecondaryTextBrush}"
+                   Text="2.5 s" FontSize="12"/>
+        <Slider Grid.Row="1" Grid.ColumnSpan="2" Name="DurationSlider" Margin="2,8,2,0"
+                Style="{StaticResource DurationSliderStyle}" Minimum="1" Maximum="10"
+                TickFrequency="0.5" IsSnapToTickEnabled="True" Value="2.5"
+                AutomationProperties.Name="Popup duration in seconds" ValueChanged="SettingChanged"/>
+      </Grid>
+      <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,15"/>
 
-            <Grid Grid.Row="9" Height="58">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="Notification duration" Style="{StaticResource SettingLabel}"/>
-                <TextBlock Grid.Column="1" Name="DurationText" Foreground="{StaticResource SecondaryTextBrush}"
-                           Text="2.5 s" FontSize="12"/>
-                <Slider Grid.Row="1" Grid.ColumnSpan="2" Name="DurationSlider" Margin="2,8,2,0"
-                        Style="{StaticResource DurationSliderStyle}" Minimum="1" Maximum="10"
-                        TickFrequency="0.5" IsSnapToTickEnabled="True" Value="2.5"
-                        AutomationProperties.Name="Notification duration in seconds"
-                        ValueChanged="SettingChanged"/>
-            </Grid>
+      <TextBlock Text="BATTERY" Style="{StaticResource EyebrowLabel}" Margin="0,0,0,6"/>
+      <Grid Height="66" Margin="0,0,0,11">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="Battery alerts" Style="{StaticResource SettingLabel}"/>
+          <TextBlock Text="PS-button popup and low-battery warnings"
+                     Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
+        </StackPanel>
+        <Button Grid.Column="1" Content="Settings" Style="{StaticResource ActionButtonStyle}"
+                VerticalAlignment="Center" Click="BatteryOptionsClick"
+                AutomationProperties.Name="Battery alert settings"/>
+      </Grid>
+      <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,15"/>
 
-            <Border Grid.Row="10" Height="1" Background="{StaticResource BorderBrush}" Margin="0,15,0,16"/>
+      <TextBlock Text="GENERAL" Style="{StaticResource EyebrowLabel}" Margin="0,0,0,6"/>
+      <Grid Height="62" Margin="0,0,0,14">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Text="Launch at startup" Style="{StaticResource SettingLabel}"/>
+          <TextBlock Text="Start minimized when you sign in" Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
+        </StackPanel>
+        <ToggleButton Grid.Column="1" Name="AutostartCheck" Style="{StaticResource SettingToggleStyle}"
+                      AutomationProperties.Name="Launch NSEdge at Windows startup" VerticalAlignment="Center"
+                      Checked="AutostartChanged" Unchecked="AutostartChanged"/>
+      </Grid>
+      <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,14"/>
 
-            <TextBlock Grid.Row="11" Text="BATTERY" FontSize="11" FontWeight="SemiBold"
-                       Foreground="{StaticResource SecondaryTextBrush}" Margin="0,7,0,0"/>
-            <Grid Grid.Row="12" Height="58">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="Battery notifications" Style="{StaticResource SettingLabel}"/>
-                    <TextBlock Text="PS popup, low-charge warnings and thresholds"
-                               Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
-                </StackPanel>
-                <Button Grid.Column="1" Content="Configure" Style="{StaticResource ActionButtonStyle}"
-                        VerticalAlignment="Center" Click="BatteryOptionsClick"/>
-            </Grid>
-            <Border Grid.Row="13" Height="1" Background="{StaticResource BorderBrush}" Margin="0,12,0,15"/>
-
-            <Grid x:Name="FooterPanel" Grid.Row="14" MinHeight="36">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel VerticalAlignment="Center">
-                    <TextBlock Name="VersionText" Text="Developed by NS" Style="{StaticResource SecondaryLabel}"/>
-                    <TextBlock Text="Controller profiles and notifications" Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
-                </StackPanel>
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Refresh names" Style="{StaticResource ActionButtonStyle}" Margin="0,0,8,0"
-                            Click="RefreshClick" ToolTip="Read saved profile names from the controller"/>
-                    <Button Content="Show profile" Style="{StaticResource PrimaryButtonStyle}" Click="ShowCurrentClick"/>
-                </StackPanel>
-            </Grid>
-        </Grid>
-    </ScrollViewer>
+      <Grid x:Name="FooterPanel" MinHeight="36">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock Name="VersionText" Text="v0.2.11 · NS" Style="{StaticResource SecondaryLabel}"
+                   VerticalAlignment="Center"/>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+          <Button Content="Refresh names" Style="{StaticResource ActionButtonStyle}" Margin="0,0,8,0"
+                  Click="RefreshClick" ToolTip="Update Sony profile names from the controller"
+                  AutomationProperties.Name="Refresh saved Sony profile names"/>
+          <Button Content="Show profile" Style="{StaticResource PrimaryButtonStyle}"
+                  Click="ShowCurrentClick" AutomationProperties.Name="Show active profile popup"/>
+        </StackPanel>
+      </Grid>
+    </StackPanel>
+  </ScrollViewer>
 </Window>
