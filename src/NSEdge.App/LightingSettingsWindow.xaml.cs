@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using Button = System.Windows.Controls.Button;
+using TextBox = System.Windows.Controls.TextBox;
 using System.Windows.Interop;
 using System.Windows.Media;
 using NSEdge.App.Services;
