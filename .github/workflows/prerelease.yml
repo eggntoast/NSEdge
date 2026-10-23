@@ -1,6 +1,10 @@
 name: Publish prerelease
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'release-requests/v0.2.2.request'
   workflow_dispatch:
     inputs:
       version:
@@ -24,11 +28,18 @@ jobs:
       RELEASE_VERSION: v0.2.2
       EXPECTED_SHA256: c03e9ad58e0bbf570c741beeaf2e6f57bff263cf4439afd3a7d04e5c6b6365db
     steps:
+      - name: Read release request
+        uses: actions/checkout@v4
+
       - name: Check approved source and build
         shell: bash
         run: |
           set -euo pipefail
-          test "${{ inputs.version }}" = "$RELEASE_VERSION"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            test "${{ inputs.version }}" = "$RELEASE_VERSION"
+          else
+            test "$(cat release-requests/v0.2.2.request)" = "$RELEASE_VERSION"
+          fi
           run_sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq .head_sha)
           conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq .conclusion)
           test "$run_sha" = "$SOURCE_SHA"
