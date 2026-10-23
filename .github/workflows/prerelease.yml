@@ -25,6 +25,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       SOURCE_SHA: 6bef963280321dc593b1e68b5ed036c84622e1d0
       BUILD_RUN: '39873803975'
+      SOURCE_ARTIFACT_ID: '12466973235'
       RELEASE_VERSION: v0.2.2
       EXPECTED_SHA256: c03e9ad58e0bbf570c741beeaf2e6f57bff263cf4439afd3a7d04e5c6b6365db
     steps:
@@ -42,6 +43,7 @@ jobs:
             grep -qx "source=$SOURCE_SHA" release-requests/v0.2.2.request
             grep -qx "build_run=$BUILD_RUN" release-requests/v0.2.2.request
             grep -qx "sha256=$EXPECTED_SHA256" release-requests/v0.2.2.request
+            grep -qx "artifact_id=$SOURCE_ARTIFACT_ID" release-requests/v0.2.2.request
           fi
           run_sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq .head_sha)
           conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq .conclusion)
@@ -59,7 +61,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          gh run download "$BUILD_RUN" -R "$GITHUB_REPOSITORY" -n "NSEdge-v0.2.2-win-x64.zip" -D dist
+          curl --fail --location --silent --show-error \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT_ID/zip" \
+            --output dist/NSEdge-v0.2.2-win-x64.zip
           printf '%s  %s\n' "$EXPECTED_SHA256" "NSEdge-v0.2.2-win-x64.zip" > dist/SHA256SUMS.txt
 
       - name: Verify archive and checksum
