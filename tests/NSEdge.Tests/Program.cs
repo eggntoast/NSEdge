@@ -54,7 +54,9 @@ Test("Display name fallback", () =>
     var names = new ProfileNames("DarkSouls", "Silent Hill", null);
     Check(names.DisplayName(EdgeProfile.Circle) == "DarkSouls");
     Check(names.DisplayName(EdgeProfile.Cross) == "Silent Hill");
-    Check(ProfileNames.Empty.DisplayName(EdgeProfile.Circle) == "Custom 1");
+    Check(ProfileNames.Empty.DisplayName(EdgeProfile.Circle) == "Circle profile");
+    Check(ProfileNames.Empty.DisplayName(EdgeProfile.Square) == "Square profile");
+    Check(EdgeProfileDecoder.Shortcut(EdgeProfile.Square) == "Fn + Square");
 });
 Test("Repeated reports do not retrigger a notification", () =>
 {
@@ -257,6 +259,18 @@ Test("Unknown and reconnect do not cause false profile alerts", () =>
     Check(!tracker.Observe(false, EdgeProfile.Unknown));
     Check(!tracker.Observe(true, EdgeProfile.Cross));
     Check(tracker.Observe(true, EdgeProfile.Default));
+});
+Test("Controller identifiers must match across transports", () =>
+{
+    byte[] usb = { 0x12, 0x55, 0x44, 0x33, 0x22, 0x11, 0xAA };
+    Check(ControllerIdentity.FromUsbAddress(usb) == "AA1122334455");
+    Check(ControllerIdentity.Normalize("aa:11:22:33:44:55") == "AA1122334455");
+    Check(ControllerIdentity.Normalize("aa-11-22-33-44-55") == "AA1122334455");
+    Check(ControllerIdentity.Normalize("AA1122334456") != ControllerIdentity.FromUsbAddress(usb));
+    Check(ControllerIdentity.FromUsbAddress(new byte[] { 0x12, 0 }) is null);
+    Check(ControllerIdentity.Normalize("000000000000") is null);
+    Check(ControllerIdentity.Normalize("FFFFFFFFFFFF") is null);
+    Check(ControllerIdentity.Normalize("BT-PATH") is null);
 });
 Console.WriteLine($"Passed {passed} protocol tests.");
 

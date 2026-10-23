@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Win32.SafeHandles;
 using NSEdge.Core;
 
@@ -49,6 +50,28 @@ internal static partial class NativeMethods
                 return buffer;
         }
         return null;
+    }
+
+    [DllImport("hid.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool HidD_GetSerialNumberString(SafeFileHandle handle,
+        StringBuilder buffer, int bufferLength);
+
+    public static string? TryReadBluetoothIdentity(SafeFileHandle handle)
+    {
+        var value = new StringBuilder(128);
+        return HidD_GetSerialNumberString(handle, value, 256)
+            ? ControllerIdentity.Normalize(value.ToString())
+            : null;
+    }
+
+    public static string? TryReadUsbIdentity(SafeFileHandle handle)
+    {
+        // Sony's 0x12 read-only feature contains the USB device address on supported devices.
+        byte[]? report = GetFeature(handle, 0x12);
+        return report is { Length: >= 7 }
+            ? ControllerIdentity.FromUsbAddress(report)
+            : null;
     }
 
     [StructLayout(LayoutKind.Sequential)]
