@@ -37,6 +37,64 @@ Test("Lightbar gradient is bounded and deterministic", () =>
     Check(LightbarPolicy.Select(new EdgeBattery(10, EdgeChargeState.Discharging), LightbarMode.BatteryGradient, palette) == palette.High);
     Check(LightbarColor.Blend(new(0, 0, 0), new(255, 255, 255), 0.5) == new LightbarColor(128, 128, 128));
 });
+Test("Lightbar gradient handles an allowed 100 percent medium boundary", () =>
+{
+    var palette = new LightbarPalette { MediumBelowPercent = 100 };
+    Check(palette.HasValidThresholds);
+    for (int decile = 0; decile <= 10; decile++)
+    {
+        LightbarColor? color = LightbarPolicy.Select(
+            new EdgeBattery(decile, EdgeChargeState.Discharging),
+            LightbarMode.BatteryGradient, palette);
+        Check(color is not null);
+        if (decile == 10) Check(color == palette.High);
+    }
+});
+Test("Lightbar writer retries failures but skips successful duplicate colours", () =>
+{
+    var tracker = new LightbarWriteTracker();
+    const string key = "controller-a|#123456";
+    int sends = 0;
+    bool failed = false;
+    try
+    {
+        tracker.TryWrite(key, () =>
+        {
+            sends++;
+            throw new IOException("Simulated HID output failure");
+        });
+    }
+    catch (IOException) { failed = true; }
+
+    Check(failed && sends == 1);
+    Check(tracker.TryWrite(key, () => sends++));
+    Check(sends == 2);
+    Check(!tracker.TryWrite(key, () => sends++));
+    Check(sends == 2);
+
+    tracker.Reset();
+    Check(tracker.TryWrite(key, () => sends++));
+    Check(sends == 3);
+});
+Test("Failed colour change invalidates earlier successful colour", () =>
+{
+    var tracker = new LightbarWriteTracker();
+    int sends = 0;
+    Check(tracker.TryWrite("a|#111111", () => sends++));
+    bool failed = false;
+    try
+    {
+        tracker.TryWrite("a|#222222", () =>
+        {
+            sends++;
+            throw new IOException("Simulated partial HID write");
+        });
+    }
+    catch (IOException) { failed = true; }
+    Check(failed && sends == 2);
+    Check(tracker.TryWrite("a|#111111", () => sends++));
+    Check(sends == 3);
+});
 Test("USB lightbar output only sets the colour flag", () =>
 {
     var colour = new LightbarColor(0x14, 0x9A, 0xFE);
