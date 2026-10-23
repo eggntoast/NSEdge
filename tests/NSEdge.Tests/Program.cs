@@ -2,6 +2,67 @@ using NSEdge.Core;
 using NSEdge.Windows.Hid;
 
 int passed = 0;
+Test("Lightbar RGB input parsing", () =>
+{
+    Check(LightbarColor.TryParse("#12aBcF", out var color));
+    Check(color == new LightbarColor(0x12, 0xAB, 0xCF));
+    Check(color.Hex == "#12ABCF");
+    foreach (var bad in new[] { null, "", "AABBCC", "#AABBCCDD", "#ZZBBCC", "#12 345" })
+        Check(!LightbarColor.TryParse(bad, out _));
+});
+Test("Lightbar policy respects charging and missing data", () =>
+{
+    var palette = new LightbarPalette();
+    Check(LightbarPolicy.Select(EdgeBattery.Unavailable, LightbarMode.BatteryBands, palette) is null);
+    Check(LightbarPolicy.Select(new EdgeBattery(4, EdgeChargeState.Charging), LightbarMode.BatteryBands, palette) == palette.Charging);
+    Check(LightbarPolicy.Select(new EdgeBattery(10, EdgeChargeState.Full), LightbarMode.BatteryBands, palette) == palette.Full);
+    Check(LightbarPolicy.Select(new EdgeBattery(null, EdgeChargeState.Error), LightbarMode.BatteryBands, palette) is null);
+    Check(LightbarPolicy.Select(EdgeBattery.Unavailable, LightbarMode.Static, palette) == palette.Static);
+});
+Test("Lightbar bands use discrete lower-bound percentages", () =>
+{
+    var palette = new LightbarPalette();
+    for (int d = 0; d <= 10; d++)
+    {
+        var b = new EdgeBattery(d, EdgeChargeState.Discharging);
+        var expected = d < 2 ? palette.Critical : d < 4 ? palette.Low : d < 7 ? palette.Medium : palette.High;
+        Check(LightbarPolicy.Select(b, LightbarMode.BatteryBands, palette) == expected);
+    }
+    Check(!((palette with { LowBelowPercent = 10 }).HasValidThresholds));
+});
+Test("Lightbar gradient is bounded and deterministic", () =>
+{
+    var palette = new LightbarPalette();
+    Check(LightbarPolicy.Select(new EdgeBattery(0, EdgeChargeState.Discharging), LightbarMode.BatteryGradient, palette) == palette.Critical);
+    Check(LightbarPolicy.Select(new EdgeBattery(10, EdgeChargeState.Discharging), LightbarMode.BatteryGradient, palette) == palette.High);
+    Check(LightbarColor.Blend(new(0, 0, 0), new(255, 255, 255), 0.5) == new LightbarColor(128, 128, 128));
+});
+Test("USB lightbar output only sets the colour flag", () =>
+{
+    var colour = new LightbarColor(0x14, 0x9A, 0xFE);
+    byte[] report = DualSenseLightbarReport.BuildUsb(colour);
+    Check(report.Length == 63 && report[0] == 0x02);
+    Check(report[1] == 0 && report[2] == 0x04);
+    Check(report[45] == 0x14 && report[46] == 0x9A && report[47] == 0xFE);
+    for (int i = 1; i < report.Length; i++)
+        if (i is not (2 or 45 or 46 or 47)) Check(report[i] == 0);
+    Check(DualSenseLightbarReport.BuildUsb(colour, 64).Length == 64);
+    bool threw = false;
+    try { DualSenseLightbarReport.BuildUsb(colour, 48); }
+    catch (ArgumentOutOfRangeException) { threw = true; }
+    Check(threw);
+});
+Test("Bluetooth lightbar output frames and authenticates colour", () =>
+{
+    var colour = new LightbarColor(0x14, 0x9A, 0xFE);
+    byte[] report = DualSenseLightbarReport.BuildBluetooth(colour, 3);
+    Check(report.Length == 78 && report[0] == 0x31 && report[1] == 0x30 && report[2] == 0x10);
+    Check(report[4] == 0x04 && report[47] == 0x14 && report[48] == 0x9A && report[49] == 0xFE);
+    uint actual = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(report.AsSpan(74));
+    Check(actual == DualSenseLightbarReport.CalculateOutputCrc(report.AsSpan(0, 74)));
+    report[48] ^= 1;
+    Check(actual != DualSenseLightbarReport.CalculateOutputCrc(report.AsSpan(0, 74)));
+});
 Test("DS4Windows disconnect targeting is controller-specific", () =>
 {
     Check(Ds4ControllerTarget.IsMatch("AA:11:22:33:44:55", "aa1122334455", "BT"));
