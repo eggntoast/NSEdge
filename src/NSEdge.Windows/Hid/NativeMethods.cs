@@ -65,13 +65,33 @@ internal static partial class NativeMethods
             : null;
     }
 
-    public static string? TryReadUsbIdentity(SafeFileHandle handle)
+    public static (string? Identity, string Status) ReadUsbIdentity(SafeFileHandle handle)
     {
-        // Sony's 0x12 read-only feature contains the USB device address on supported devices.
-        byte[]? report = GetFeature(handle, 0x12);
-        return report is { Length: >= 7 }
-            ? ControllerIdentity.FromUsbAddress(report)
-            : null;
+        const byte pairingReport = 0x09;
+        int length;
+        try { length = ReadCaps(handle).FeatureReportByteLength; }
+        catch (Exception ex) when (ex is IOException or Win32Exception)
+        {
+            return (null, "Cannot read USB HID feature capabilities");
+        }
+
+        if (length < 20)
+            return (null, "USB pairing feature buffer is too small");
+
+        byte[] report = new byte[length];
+        report[0] = pairingReport;
+        if (!HidD_GetFeature(handle, report, report.Length))
+        {
+            int error = Marshal.GetLastWin32Error();
+            return (null, $"USB pairing report 0x09 unavailable (Windows error {error})");
+        }
+        if (report[0] != pairingReport)
+            return (null, "USB pairing report ID was unexpected");
+
+        string? identity = ControllerIdentity.FromUsbAddress(report);
+        return identity is null
+            ? (null, "USB pairing report contains no usable controller identity")
+            : (identity, "USB pairing report 0x09 received");
     }
 
     [StructLayout(LayoutKind.Sequential)]

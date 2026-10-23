@@ -15,7 +15,7 @@ public static class ControllerIdentity
 
     public static string? FromUsbAddress(ReadOnlySpan<byte> report)
     {
-        if (report.Length < 7 || report[0] != 0x12) return null;
+        if (report.Length < 20 || report[0] != 0x09) return null;
         Span<byte> address = stackalloc byte[6];
         for (int i = 0; i < 6; i++) address[i] = report[6 - i];
         return Normalize(Convert.ToHexString(address));

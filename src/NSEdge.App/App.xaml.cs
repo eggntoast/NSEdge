@@ -248,6 +248,7 @@ public partial class App : System.Windows.Application
             $"BT profile code (byte 50): {(status.BluetoothProfileCandidate is byte candidate ? $"0x{candidate:X2}" : "Unavailable")}\n" +
             $"USB profile code (byte 49): {(status.UsbProfileCandidate is byte usbCode ? $"0x{usbCode:X2}" : "Unavailable")}\n" +
             $"Controller identity available: {status.DeviceIdentityAvailable}\n" +
+            $"Controller identification: {status.IdentityStatus}\n" +
             $"Names from USB cache: {status.NamesFromUsbCache}\n" +
             $"Reports: {status.ReportCount}; BT minimal: {status.MinimalReports}; bad CRC: {status.BadCrcReports}\n" +
             $"Last input (UTC): {status.LastInputUtc?.ToString("O") ?? "None"}\n" +
