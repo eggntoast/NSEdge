@@ -1,0 +1,8 @@
+version=v0.2.9
+source=c1b2091730c95a0588c074a4be9a769eb5ebaf4c
+build_run=39925637837
+artifact_id=12489496553
+sha256=8b86b83d41492a6d5966b171e522b567fc56d142e8d6448552b4d3dfb13793ef
+# Experimental native DualSense Edge RGB for USB and Bluetooth, disabled by default. Battery bands, gradient and custom HEX colours.
+# Native output pauses while DS4Windows or certain other controller managers are detected. Physical LED operation and cross-application handoff have not been verified.
+# Unsigned Windows 11 x64 prerelease; no stable release.
