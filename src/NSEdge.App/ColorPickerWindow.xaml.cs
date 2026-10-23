@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using NSEdge.Core;
+using NSEdge.App.Services;
+using System.Windows.Interop;
 
 namespace NSEdge.App;
 
@@ -13,6 +15,7 @@ public partial class ColorPickerWindow : Window
     public ColorPickerWindow(LightbarColor initial)
     {
         InitializeComponent();
+        SourceInitialized += (_, _) => WindowAppearance.Apply(new WindowInteropHelper(this).Handle);
         SelectedColor = initial;
         RedSlider.Value = initial.Red;
         GreenSlider.Value = initial.Green;
