@@ -65,7 +65,12 @@
         </Grid>
         <TextBlock Text="Battery levels are reported in 10% bands, not precise percentages."
                    Style="{StaticResource SecondaryLabel}" TextWrapping="Wrap" Margin="0,4,0,17"/>
-        <Button Content="Done" HorizontalAlignment="Right" Width="88"
-                Style="{StaticResource PrimaryButtonStyle}" Click="DoneClick"/>
+        <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <Button Content="Controller lighting…" Style="{StaticResource ActionButtonStyle}"
+                    HorizontalAlignment="Left" Click="LightingClick"/>
+            <Button Content="Done" Grid.Column="1" Width="88"
+                    Style="{StaticResource PrimaryButtonStyle}" Click="DoneClick"/>
+        </Grid>
     </StackPanel>
 </Window>

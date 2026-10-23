@@ -16,16 +16,18 @@ public partial class MainWindow : Window
     private readonly SettingsStore store;
     private readonly Action showCurrent;
     private readonly Action refresh;
+    private readonly Action lightingChanged;
     private bool initializing = true;
     private bool restoringAutostart;
 
-    public MainWindow(AppSettings settings, SettingsStore store, Action showCurrent, Action refresh)
+    public MainWindow(AppSettings settings, SettingsStore store, Action showCurrent, Action refresh, Action lightingChanged)
     {
         InitializeComponent();
         this.settings = settings;
         this.store = store;
         this.showCurrent = showCurrent;
         this.refresh = refresh;
+        this.lightingChanged = lightingChanged;
         NotificationsCheck.IsChecked = settings.ShowNotifications;
         DurationSlider.Value = settings.NotificationSeconds;
         DurationText.Text = $"{settings.NotificationSeconds:0.0} s";
@@ -149,7 +151,7 @@ public partial class MainWindow : Window
 
     private void BatteryOptionsClick(object sender, RoutedEventArgs e)
     {
-        var window = new BatterySettingsWindow(settings, store) { Owner = this };
+        var window = new BatterySettingsWindow(settings, store, lightingChanged) { Owner = this };
         window.ShowDialog();
     }
 

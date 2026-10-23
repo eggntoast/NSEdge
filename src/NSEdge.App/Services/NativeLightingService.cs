@@ -103,13 +103,18 @@ internal sealed class NativeLightingService(EdgeMonitor monitor, AppSettings set
 
     private static bool CanOwnOutput()
     {
-        // Process detection is a fail-closed compatibility guard, not an interprocess lock.
-        foreach (string name in new[] { "DS4Windows", "DualSenseX", "DSX", "reWASD" })
+        try
         {
-            using var procList = ProcessList.Get(name);
-            if (procList.Present) return false;
+            // Process detection is a fail-closed compatibility guard, not an interprocess lock.
+            foreach (string name in new[] { "DS4Windows", "DualSenseX", "DSX", "reWASD" })
+            {
+                using var procList = ProcessList.Get(name);
+                if (procList.Present) return false;
+            }
+            return true;
         }
-        return true;
+        catch (Win32Exception) { return false; }
+        catch (InvalidOperationException) { return false; }
     }
 
     private void SetStatus(string value)

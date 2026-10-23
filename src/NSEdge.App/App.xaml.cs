@@ -17,6 +17,7 @@ public partial class App : System.Windows.Application
     private bool lastConnected;
     private string lastError = string.Empty;
     private EdgeMonitor? monitor;
+    private NativeLightingService? lighting;
     private Forms.ToolStripMenuItem? disconnectMenuItem;
     private ProfileOverlay? overlay;
     private BatteryOverlay? batteryOverlay;
@@ -49,7 +50,7 @@ public partial class App : System.Windows.Application
             settings = store.Load();
             overlay = new ProfileOverlay();
             batteryOverlay = new BatteryOverlay();
-            settingsWindow = new MainWindow(settings, store, ShowCurrent, () => monitor?.RefreshNames());
+            settingsWindow = new MainWindow(settings, store, ShowCurrent, () => monitor?.RefreshNames(), () => lighting?.Reset());
             if (smokeTest)
             {
                 using Icon? testIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
@@ -61,7 +62,7 @@ public partial class App : System.Windows.Application
                     try
                     {
                         settingsWindow.AssertNormalLayout();
-                        var batterySettingsTest = new BatterySettingsWindow(settings, store) { Owner = settingsWindow };
+                        var batterySettingsTest = new BatterySettingsWindow(settings, store, () => { }) { Owner = settingsWindow };
                         batterySettingsTest.Show();
                         batterySettingsTest.UpdateLayout();
                         if (batterySettingsTest.ActualHeight > SystemParameters.WorkArea.Height - 32)
@@ -105,6 +106,7 @@ public partial class App : System.Windows.Application
             tray.ContextMenuStrip = menu;
             tray.MouseDoubleClick += (_, _) => OpenSettings();
             monitor = new EdgeMonitor();
+            lighting = new NativeLightingService(monitor, settings);
             monitor.Updated += OnMonitorUpdated;
             monitor.PsPressed += OnPsPressed;
             monitor.Start();
@@ -113,6 +115,7 @@ public partial class App : System.Windows.Application
             {
                 if (settingsWindow is not null && monitor is { IsReportFresh: false } && monitor.Current.Connected)
                     settingsWindow.SetStatus(monitor.Current with { Battery = EdgeBattery.Unavailable });
+                lighting?.Update();
             };
             freshnessTimer.Start();
             Log.Write("NSEdge started: " + typeof(App).Assembly.GetName().Version);
@@ -135,6 +138,7 @@ public partial class App : System.Windows.Application
             if (IsExiting)
                 return;
             settingsWindow?.SetStatus(status);
+            lighting?.Update();
             if (disconnectMenuItem is not null)
                 disconnectMenuItem.Enabled = status.Connected &&
                     status.Transport == EdgeTransport.Bluetooth &&
@@ -258,6 +262,7 @@ public partial class App : System.Windows.Application
             $"Controller identity available: {status.DeviceIdentityAvailable}\n" +
             $"Controller identification: {status.IdentityStatus}\n" +
             $"Bluetooth Sony name reports: {status.BluetoothNameStatus}\n" +
+            $"Native lighting: {lighting?.Status ?? "Unavailable"}\n" +
             $"Names from USB cache: {status.NamesFromUsbCache}\n" +
             $"Reports: {status.ReportCount}; BT minimal: {status.MinimalReports}; bad CRC: {status.BadCrcReports}\n" +
             $"Last input (UTC): {status.LastInputUtc?.ToString("O") ?? "None"}\n" +
@@ -309,6 +314,8 @@ public partial class App : System.Windows.Application
         IsExiting = true;
         try
         {
+            if (lighting is not null)
+                lighting.DisposeAsync().AsTask().GetAwaiter().GetResult();
             if (monitor is not null)
             {
                 monitor.Updated -= OnMonitorUpdated;
