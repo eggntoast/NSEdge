@@ -1,109 +1,114 @@
 name: Publish prerelease
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'release-requests/v0.2.2.request'
   workflow_dispatch:
     inputs:
       version:
-        description: Approved version
-        type: choice
-        options:
-          - v0.2.2
+        description: Approved version tag (vX.Y.Z)
         required: true
+        type: string
+      source_sha:
+        description: Approved 40-character commit SHA on main
+        required: true
+        type: string
 
 jobs:
   publish:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     permissions:
-      actions: read
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
-      SOURCE_SHA: 6bef963280321dc593b1e68b5ed036c84622e1d0
-      BUILD_RUN: '39873803975'
-      SOURCE_ARTIFACT_ID: '12466973235'
-      RELEASE_VERSION: v0.2.2
-      EXPECTED_SHA256: c03e9ad58e0bbf570c741beeaf2e6f57bff263cf4439afd3a7d04e5c6b6365db
+      RELEASE_TAG: ${{ inputs.version }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
     steps:
-      - name: Read release request
-        uses: actions/checkout@v4
-
-      - name: Check approved source and build
-        shell: bash
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Verify approved source
+        shell: pwsh
         run: |
-          set -euo pipefail
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            test "${{ inputs.version }}" = "$RELEASE_VERSION"
-          else
-            grep -qx "version=$RELEASE_VERSION" release-requests/v0.2.2.request
-            grep -qx "source=$SOURCE_SHA" release-requests/v0.2.2.request
-            grep -qx "build_run=$BUILD_RUN" release-requests/v0.2.2.request
-            grep -qx "sha256=$EXPECTED_SHA256" release-requests/v0.2.2.request
-            grep -qx "artifact_id=$SOURCE_ARTIFACT_ID" release-requests/v0.2.2.request
-          fi
-          run_sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq .head_sha)
-          conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN" --jq .conclusion)
-          test "$run_sha" = "$SOURCE_SHA"
-          test "$conclusion" = success
-          if gh release view "$RELEASE_VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release $RELEASE_VERSION already exists"; exit 1
-          fi
-          if tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_VERSION" --jq .object.sha 2>/dev/null); then
-            test "$tag_sha" = "$SOURCE_SHA" || { echo "Existing tag targets a different commit"; exit 1; }
-          fi
-
-      - name: Retrieve verified artifacts
-        shell: bash
+          $ErrorActionPreference = 'Stop'
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') { throw 'Invalid version' }
+          if ($env:SOURCE_SHA -cnotmatch '^[0-9a-fA-F]{40}$') { throw 'Invalid SHA' }
+          if ((git rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'Wrong source checkout' }
+          git fetch origin main --quiet
+          git merge-base --is-ancestor $env:SOURCE_SHA origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'Commit is not on main' }
+          [xml]$proj = Get-Content src/NSEdge.App/NSEdge.App.csproj -Raw
+          $version = [string]$proj.Project.PropertyGroup.Version
+          if ("v$version" -ne $env:RELEASE_TAG) { throw "Version mismatch: $version" }
+          if ((git ls-remote --tags origin "refs/tags/$env:RELEASE_TAG") | Out-String) { throw 'Tag already exists' }
+          "APP_VERSION=$version" >> $env:GITHUB_ENV
+      - name: Build and test
+        shell: pwsh
         run: |
-          set -euo pipefail
-          mkdir -p dist
-          curl --fail --location --silent --show-error \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header "Accept: application/vnd.github+json" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/artifacts/$SOURCE_ARTIFACT_ID/zip" \
-            --output dist/NSEdge-v0.2.2-win-x64.zip
-          printf '%s  %s\n' "$EXPECTED_SHA256" "NSEdge-v0.2.2-win-x64.zip" > dist/SHA256SUMS.txt
-
-      - name: Verify archive and checksum
-        shell: bash
+          dotnet build NSEdge.slnx -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
+          dotnet run --project tests/NSEdge.Tests -c Release --no-build
+          if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+      - name: Publish application
+        shell: pwsh
         run: |
-          set -euo pipefail
-          cd dist
-          echo "$EXPECTED_SHA256  NSEdge-v0.2.2-win-x64.zip" | sha256sum -c -
-          sha256sum -c SHA256SUMS.txt
-          unzip -t NSEdge-v0.2.2-win-x64.zip >/dev/null
-          unzip -Z -1 NSEdge-v0.2.2-win-x64.zip > entries.txt
-          grep -qx 'NSEdge/NSEdge.exe' entries.txt
-          if grep -Ev '^NSEdge/' entries.txt | grep -q .; then
-            echo 'Unexpected archive root'; exit 1
-          fi
-          if grep -Ei '\.pdb$|NSEdge-win-x64/' entries.txt; then
-            echo 'Debug symbols or old application root inside ZIP'; exit 1
-          fi
-          rm entries.txt
-
-      - name: Publish approved prerelease
-        shell: bash
+          dotnet publish src/NSEdge.App/NSEdge.App.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o artifacts/NSEdge
+          if ($LASTEXITCODE -ne 0) { throw 'Publish failed' }
+      - name: Verify and package
+        shell: pwsh
         run: |
-          set -euo pipefail
-          gh release create "$RELEASE_VERSION" \
-            dist/NSEdge-v0.2.2-win-x64.zip dist/SHA256SUMS.txt \
-            -R "$GITHUB_REPOSITORY" --target "$SOURCE_SHA" \
-            --prerelease --title "NSEdge v0.2.2" \
-            --notes "USB profile monitoring, battery popups and experimental Bluetooth support. Bluetooth input has not been verified on physical hardware. This Windows build is unsigned."
-
-      - name: Verify published assets
-        shell: bash
+          $ErrorActionPreference = 'Stop'
+          $exe = (Resolve-Path artifacts/NSEdge/NSEdge.exe).Path
+          $p = Start-Process $exe -ArgumentList '--smoke-test' -PassThru
+          if (-not $p.WaitForExit(20000)) {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            throw 'Smoke test timed out'
+          }
+          if ($p.ExitCode -ne 0) { throw 'Startup test failed' }
+          Get-ChildItem artifacts/NSEdge -Filter '*.pdb' | Remove-Item -Force
+          New-Item -ItemType Directory -Force artifacts/release | Out-Null
+          $name = "NSEdge-$env:RELEASE_TAG-win-x64.zip"
+          $zip = Join-Path artifacts/release $name
+          Compress-Archive -LiteralPath artifacts/NSEdge -DestinationPath $zip -CompressionLevel Optimal
+          Add-Type -AssemblyName System.IO.Compression
+          $archive = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip).Path)
+          try {
+            $entries = @($archive.Entries | Where-Object { $_.FullName -notmatch '/$' })
+            if (-not ($entries | Where-Object { $_.FullName -eq 'NSEdge/NSEdge.exe' })) { throw 'Missing EXE in archive' }
+            if ($entries | Where-Object { $_.FullName -notlike 'NSEdge/*' -or $_.FullName -match '\.pdb$' }) {
+              throw 'Incorrect ZIP contents'
+            }
+          }
+          finally { $archive.Dispose() }
+          New-Item -ItemType Directory -Force artifacts/check | Out-Null
+          [System.IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $zip).Path, (Resolve-Path artifacts/check).Path)
+          $packedExe = (Resolve-Path artifacts/check/NSEdge/NSEdge.exe).Path
+          if ((Get-Item $packedExe).VersionInfo.ProductVersion -notlike "$env:APP_VERSION*") { throw 'Wrong EXE version' }
+          $p = Start-Process $packedExe -ArgumentList '--smoke-test' -PassThru
+          if (-not $p.WaitForExit(20000)) {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            throw 'Packaged app startup timed out'
+          }
+          if ($p.ExitCode -ne 0) { throw 'Packaged app failed' }
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $name" | Set-Content artifacts/release/SHA256SUMS.txt -Encoding ascii
+          "ZIP_PATH=$zip" >> $env:GITHUB_ENV
+          "ZIP_NAME=$name" >> $env:GITHUB_ENV
+      - name: Create prerelease
+        shell: pwsh
         run: |
-          set -euo pipefail
-          mkdir -p published
-          gh release download "$RELEASE_VERSION" -R "$GITHUB_REPOSITORY" \
-            -p NSEdge-v0.2.2-win-x64.zip -p SHA256SUMS.txt -D published
-          cd published
-          echo "$EXPECTED_SHA256  NSEdge-v0.2.2-win-x64.zip" | sha256sum -c -
-          sha256sum -c SHA256SUMS.txt
+          gh release create $env:RELEASE_TAG $env:ZIP_PATH artifacts/release/SHA256SUMS.txt -R $env:GITHUB_REPOSITORY --target $env:SOURCE_SHA --prerelease --title "NSEdge $env:RELEASE_TAG" --notes "Windows 11 x64 prerelease. The executable is unsigned."
+          if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
+      - name: Verify release downloads
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/release-check | Out-Null
+          gh release download $env:RELEASE_TAG -R $env:GITHUB_REPOSITORY -p $env:ZIP_NAME -p SHA256SUMS.txt -D artifacts/release-check
+          if ($LASTEXITCODE -ne 0) { throw 'Release download failed' }
+          $before = (Get-FileHash $env:ZIP_PATH -Algorithm SHA256).Hash
+          $after = (Get-FileHash (Join-Path artifacts/release-check $env:ZIP_NAME) -Algorithm SHA256).Hash
+          if ($before -ne $after) { throw 'Published ZIP hash mismatch' }
+          $checksums = Get-Content artifacts/release-check/SHA256SUMS.txt -Raw
+          if (-not $checksums.Contains($before.ToLowerInvariant())) { throw 'Published checksum mismatch' }
