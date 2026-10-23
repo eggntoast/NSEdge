@@ -9,6 +9,7 @@ public sealed record EdgeStatus(bool Connected, EdgeProfile Profile, ProfileName
     public bool NamesFromUsbCache { get; init; }
     public bool DeviceIdentityAvailable { get; init; }
     public string IdentityStatus { get; init; } = "Not checked";
+    public string BluetoothNameStatus { get; init; } = "Not checked";
     public byte? UsbProfileCandidate { get; init; }
     public byte? BluetoothProfileCandidate { get; init; }
     public EdgeTransport? Transport { get; init; }
@@ -27,6 +28,8 @@ public sealed class EdgeMonitor : IAsyncDisposable
     private EdgeStatus current = EdgeStatus.Disconnected;
     private long lastReportTicks;
     private ProfileNameCache? nameCache;
+    private string? controllerIdentity;
+    public string? CurrentControllerIdentity => Volatile.Read(ref controllerIdentity);
 
     public event Action<EdgeStatus>? Updated;
     public event Action<EdgeBattery>? PsPressed;
@@ -114,6 +117,8 @@ public sealed class EdgeMonitor : IAsyncDisposable
         string identityStatus = bluetooth
             ? controllerId is null ? "Bluetooth serial unavailable" : "Bluetooth serial available"
             : usbIdentity.Status;
+        Volatile.Write(ref controllerIdentity, controllerId);
+        string bluetoothNameStatus = bluetooth ? "Not queried (use Refresh names)" : "Not applicable";
         ProfileNames names = bluetooth ? ProfileNames.Empty : ReadNames(handle);
         bool cachedNames = false;
         // Cache errors must not interrupt input monitoring.
@@ -158,6 +163,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
             NamesFromUsbCache = cachedNames,
             DeviceIdentityAvailable = controllerId is not null,
             IdentityStatus = identityStatus,
+            BluetoothNameStatus = bluetoothNameStatus,
             ScanSummary = scanSummary,
             MinimalReports = minimalReports,
             BadCrcReports = badCrcReports,
@@ -174,15 +180,32 @@ public sealed class EdgeMonitor : IAsyncDisposable
                 {
                     if (bluetooth)
                     {
-                        try
+                        // Manual read-only probe: the Edge's USB name reports may not be exposed over Bluetooth.
+                        ProfileNames directNames = ReadNames(handle);
+                        if (directNames != ProfileNames.Empty &&
+                            (!string.IsNullOrWhiteSpace(directNames.Circle) ||
+                             !string.IsNullOrWhiteSpace(directNames.Cross) ||
+                             !string.IsNullOrWhiteSpace(directNames.Square)))
                         {
-                            names = nameCache?.Read(controllerId) ?? ProfileNames.Empty;
-                            cachedNames = names != ProfileNames.Empty;
-                        }
-                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
-                        {
-                            names = ProfileNames.Empty;
+                            names = directNames;
                             cachedNames = false;
+                            bluetoothNameStatus = "Sony name feature reports responded";
+                            try { nameCache?.Save(controllerId, names); }
+                            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+                        }
+                        else
+                        {
+                            bluetoothNameStatus = "Sony name feature reports unavailable over Bluetooth";
+                            try
+                            {
+                                names = nameCache?.Read(controllerId) ?? ProfileNames.Empty;
+                                cachedNames = names != ProfileNames.Empty;
+                            }
+                            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+                            {
+                                names = ProfileNames.Empty;
+                                cachedNames = false;
+                            }
                         }
                     }
                     else
@@ -192,7 +215,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
                         catch (IOException) { }
                         catch (UnauthorizedAccessException) { }
                     }
-                    Publish(Snapshot(bluetooth ? "Cached names refreshed" : "Names refreshed"));
+                    Publish(Snapshot(bluetooth ? bluetoothNameStatus : "Names refreshed"));
                 }
 
                 int read = await stream.ReadAsync(buffer.AsMemory(), token).ConfigureAwait(false);
@@ -271,7 +294,11 @@ public sealed class EdgeMonitor : IAsyncDisposable
         }
         catch (Exception ex) when (token.IsCancellationRequested &&
             ex is IOException or ObjectDisposedException or OperationCanceledException) { }
-        finally { Publish(EdgeStatus.Disconnected with { ScanSummary = scanSummary }); }
+        finally
+        {
+            Volatile.Write(ref controllerIdentity, null);
+            Publish(EdgeStatus.Disconnected with { ScanSummary = scanSummary });
+        }
     }
 
     private static ProfileNames ReadNames(SafeFileHandle handle)

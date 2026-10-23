@@ -17,6 +17,7 @@ public partial class App : System.Windows.Application
     private bool lastConnected;
     private string lastError = string.Empty;
     private EdgeMonitor? monitor;
+    private Forms.ToolStripMenuItem? disconnectMenuItem;
     private ProfileOverlay? overlay;
     private BatteryOverlay? batteryOverlay;
     private DispatcherTimer? freshnessTimer;
@@ -96,6 +97,9 @@ public partial class App : System.Windows.Application
             menu.Items.Add("Show current profile", null, (_, _) => ShowCurrent());
             menu.Items.Add("Refresh names", null, (_, _) => monitor?.RefreshNames());
             menu.Items.Add("Diagnostics", null, (_, _) => ShowDiagnostics());
+            disconnectMenuItem = new Forms.ToolStripMenuItem("Disconnect Bluetooth controller", null,
+                (_, _) => DisconnectBluetoothController()) { Enabled = false };
+            menu.Items.Add(disconnectMenuItem);
             menu.Items.Add(new Forms.ToolStripSeparator());
             menu.Items.Add("Exit", null, (_, _) => Shutdown());
             tray.ContextMenuStrip = menu;
@@ -131,6 +135,10 @@ public partial class App : System.Windows.Application
             if (IsExiting)
                 return;
             settingsWindow?.SetStatus(status);
+            if (disconnectMenuItem is not null)
+                disconnectMenuItem.Enabled = status.Connected &&
+                    status.Transport == EdgeTransport.Bluetooth &&
+                    monitor?.CurrentControllerIdentity is not null;
             if (tray is not null)
             {
                 string label = status.Profile == EdgeProfile.Unknown ? "Waiting for controller" : status.Names.DisplayName(status.Profile);
@@ -249,11 +257,51 @@ public partial class App : System.Windows.Application
             $"USB profile code (byte 49): {(status.UsbProfileCandidate is byte usbCode ? $"0x{usbCode:X2}" : "Unavailable")}\n" +
             $"Controller identity available: {status.DeviceIdentityAvailable}\n" +
             $"Controller identification: {status.IdentityStatus}\n" +
+            $"Bluetooth Sony name reports: {status.BluetoothNameStatus}\n" +
             $"Names from USB cache: {status.NamesFromUsbCache}\n" +
             $"Reports: {status.ReportCount}; BT minimal: {status.MinimalReports}; bad CRC: {status.BadCrcReports}\n" +
             $"Last input (UTC): {status.LastInputUtc?.ToString("O") ?? "None"}\n" +
             $"Discovery: {status.ScanSummary}\nStatus: {status.Detail}\nLog: {Log.Path}",
             "NSEdge diagnostics", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private async void DisconnectBluetoothController()
+    {
+        if (monitor?.Current is not { Connected: true, Transport: EdgeTransport.Bluetooth })
+            return;
+        string? identity = monitor.CurrentControllerIdentity;
+        if (identity is null)
+        {
+            System.Windows.MessageBox.Show("Controller identity is unavailable.", "NSEdge",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        if (System.Windows.MessageBox.Show(
+            "Ask DS4Windows to disconnect this Bluetooth controller? Gameplay may be interrupted.",
+            "Disconnect controller", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            return;
+
+        if (disconnectMenuItem is not null) disconnectMenuItem.Enabled = false;
+        try
+        {
+            string result = await Task.Run(() => Ds4WindowsIpc.DisconnectMatchingBluetoothController(identity));
+            Log.Write("DS4Windows disconnect: " + result);
+            System.Windows.MessageBox.Show(result, "NSEdge", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            Log.Write("DS4Windows disconnect unavailable: " + ex.GetType().Name);
+            System.Windows.MessageBox.Show("DS4Windows disconnect is unavailable: " + ex.Message,
+                "NSEdge", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            if (disconnectMenuItem is not null)
+                disconnectMenuItem.Enabled = monitor?.Current is
+                    { Connected: true, Transport: EdgeTransport.Bluetooth } &&
+                    monitor.CurrentControllerIdentity is not null;
+        }
     }
 
     private void OnExit(object sender, ExitEventArgs e)
