@@ -32,6 +32,7 @@ public partial class App : System.Windows.Application
     private byte? lastUsbProfileCode;
     private readonly ProfileNotificationTracker profileNotifications = new();
     public bool IsExiting { get; private set; }
+    public EdgeBattery CurrentBattery => monitor?.Current.Battery ?? EdgeBattery.Unavailable;
 
     private void OnStart(object sender, StartupEventArgs e)
     {
@@ -50,7 +51,7 @@ public partial class App : System.Windows.Application
             settings = store.Load();
             overlay = new ProfileOverlay();
             batteryOverlay = new BatteryOverlay();
-            settingsWindow = new MainWindow(settings, store, ShowCurrent, () => monitor?.RefreshNames(), () => lighting?.Reset());
+            settingsWindow = new MainWindow(settings, store, ShowCurrent, () => monitor?.RefreshNames(), () => lighting?.Reset(), () => lighting?.Status ?? "Lighting is off");
             if (smokeTest)
             {
                 using Icon? testIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!);
@@ -62,17 +63,30 @@ public partial class App : System.Windows.Application
                     try
                     {
                         settingsWindow.AssertNormalLayout();
-                        var batterySettingsTest = new BatterySettingsWindow(settings, store, () => { }) { Owner = settingsWindow };
+                        var batterySettingsTest = new BatterySettingsWindow(settings, store) { Owner = settingsWindow };
                         batterySettingsTest.Show();
                         batterySettingsTest.UpdateLayout();
                         if (batterySettingsTest.ActualHeight > SystemParameters.WorkArea.Height - 32)
                             throw new InvalidOperationException("Battery settings exceeds desktop work area.");
                         batterySettingsTest.Close();
-                        var lightingSettingsTest = new LightingSettingsWindow(settings, store, () => { }) { Owner = settingsWindow };
+                        var lightingSettingsTest = new LightingSettingsWindow(settings, store, () => { }, () => "Lighting is off") { Owner = settingsWindow };
                         lightingSettingsTest.Show();
                         lightingSettingsTest.UpdateLayout();
+                        lightingSettingsTest.AssertDarkSelector();
                         if (lightingSettingsTest.ActualHeight > SystemParameters.WorkArea.Height - 32)
                             throw new InvalidOperationException("Lighting settings exceeds desktop work area.");
+                        var pickerTest = new ColorPickerWindow(new LightbarColor(0x75, 0xB8, 0xFF)) { Owner = lightingSettingsTest };
+                        pickerTest.Show();
+                        pickerTest.UpdateLayout();
+                        if (pickerTest.ActualHeight > SystemParameters.WorkArea.Height - 32)
+                            throw new InvalidOperationException("Colour picker exceeds desktop work area.");
+                        pickerTest.Close();
+                        var confirmationTest = new LightingConfirmationWindow { Owner = lightingSettingsTest };
+                        confirmationTest.Show();
+                        confirmationTest.UpdateLayout();
+                        if (confirmationTest.ActualHeight > SystemParameters.WorkArea.Height - 32)
+                            throw new InvalidOperationException("Lighting confirmation exceeds desktop work area.");
+                        confirmationTest.Close();
                         lightingSettingsTest.Close();
                         string? preview = Environment.GetEnvironmentVariable("NSEDGE_PREVIEW_PATH");
                         if (!string.IsNullOrWhiteSpace(preview))
@@ -101,8 +115,8 @@ public partial class App : System.Windows.Application
             };
             var menu = new Forms.ContextMenuStrip();
             menu.Items.Add("Open NSEdge", null, (_, _) => OpenSettings());
-            menu.Items.Add("Show current profile", null, (_, _) => ShowCurrent());
-            menu.Items.Add("Refresh names", null, (_, _) => monitor?.RefreshNames());
+            menu.Items.Add("Show profile", null, (_, _) => ShowCurrent());
+            menu.Items.Add("Refresh profile names", null, (_, _) => monitor?.RefreshNames());
             menu.Items.Add("Diagnostics", null, (_, _) => ShowDiagnostics());
             disconnectMenuItem = new Forms.ToolStripMenuItem("Disconnect Bluetooth controller", null,
                 (_, _) => DisconnectBluetoothController()) { Enabled = false };
@@ -137,6 +151,7 @@ public partial class App : System.Windows.Application
                 if (settingsWindow is not null && monitor is { IsReportFresh: false } && monitor.Current.Connected)
                     settingsWindow.SetStatus(monitor.Current with { Battery = EdgeBattery.Unavailable });
                 lighting?.Update();
+                settingsWindow?.UpdateLightingStatus();
             };
             freshnessTimer.Start();
             Log.Write("NSEdge started: " + typeof(App).Assembly.GetName().Version);
@@ -160,6 +175,7 @@ public partial class App : System.Windows.Application
                 return;
             settingsWindow?.SetStatus(status);
             lighting?.Update();
+            settingsWindow?.UpdateLightingStatus();
             if (disconnectMenuItem is not null)
                 disconnectMenuItem.Enabled = status.Connected &&
                     status.Transport == EdgeTransport.Bluetooth &&

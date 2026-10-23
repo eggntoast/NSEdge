@@ -35,7 +35,7 @@ public partial class MainWindow : Window
         DurationText.Text = $"{settings.NotificationSeconds:0.0} s";
         try { AutostartCheck.IsChecked = StartupManager.IsEnabled(); }
         catch (Exception ex) { Log.Write("Startup entry unavailable: " + ex.Message); }
-        VersionText.Text = $"v{typeof(App).Assembly.GetName().Version?.ToString(3)}  ·  Developed by NS";
+        VersionText.Text = $"v{typeof(App).Assembly.GetName().Version?.ToString(3)}  ·  NS";
         initializing = false;
         UpdateLightingStatus();
     }
@@ -54,11 +54,11 @@ public partial class MainWindow : Window
             ? status.Transport == EdgeTransport.Bluetooth ? "DualSense Edge  ·  Bluetooth" : "DualSense Edge  ·  USB"
             : status.Detail;
         ProfileText.ToolTip = status.NamesFromUsbCache
-            ? "Name saved from an earlier USB connection. Reconnect by USB after changing Sony profiles."
+            ? "Saved Sony profile name from the last USB connection."
             : null;
         ProfileText.Text = status.Profile == EdgeProfile.Unknown
             ? connected && status.Transport == EdgeTransport.Bluetooth
-                ? "Profile not verified"
+                ? "Profile unavailable"
                 : connected ? "Waiting for input" : "No active profile"
             : status.Names.DisplayName(status.Profile);
         ShortcutText.Text = status.Profile == EdgeProfile.Unknown ? "—" : EdgeProfileDecoder.Shortcut(status.Profile);

@@ -1,7 +1,7 @@
 <Window x:Class="NSEdge.App.BatterySettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Battery settings · NSEdge" Width="488" SizeToContent="Height"
+        Title="Battery alerts · NSEdge" Width="488" SizeToContent="Height"
         ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
         Background="{StaticResource BaseBrush}" Foreground="{StaticResource PrimaryTextBrush}"
         FontFamily="Segoe UI" UseLayoutRounding="True" SnapsToDevicePixels="True"
