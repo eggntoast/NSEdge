@@ -11,7 +11,7 @@ internal sealed class NativeLightingService(EdgeMonitor monitor, AppSettings set
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly CancellationTokenSource stopping = new();
     private Task? active;
-    private string? lastWrite;
+    private readonly LightbarWriteTracker writes = new();
     private string? initializedPath;
     private string lastStatus = "Lighting is off";
     private byte sequence;
@@ -26,7 +26,7 @@ internal sealed class NativeLightingService(EdgeMonitor monitor, AppSettings set
 
     public void Reset()
     {
-        lastWrite = null;
+        writes.Reset();
         Update();
     }
 
@@ -39,7 +39,7 @@ internal sealed class NativeLightingService(EdgeMonitor monitor, AppSettings set
             {
                 if (!settings.NativeLightingEnabled)
                 {
-                    lastWrite = null;
+                    writes.Reset();
                     initializedPath = null;
                     SetStatus("Lighting is off");
                     return;
@@ -49,7 +49,7 @@ internal sealed class NativeLightingService(EdgeMonitor monitor, AppSettings set
                 string? path = monitor.CurrentDevicePath;
                 if (!state.Connected || !monitor.IsReportFresh || path is null || state.Transport is null)
                 {
-                    lastWrite = null;
+                    writes.Reset();
                     initializedPath = null;
                     SetStatus("Waiting for a controller");
                     return;
@@ -71,21 +71,18 @@ internal sealed class NativeLightingService(EdgeMonitor monitor, AppSettings set
 
                 if (!CanOwnOutput())
                 {
-                    lastWrite = null;
+                    writes.Reset();
                     initializedPath = null;
                     SetStatus("Other controller software detected; native lighting paused");
                     return;
                 }
 
                 string key = $"{path}|{color.Value.Hex}";
-                if (lastWrite == key) return;
-                lastWrite = key;
-
                 if (stopping.IsCancellationRequested || !settings.NativeLightingEnabled ||
                     !string.Equals(monitor.CurrentDevicePath, path, StringComparison.Ordinal) ||
                     !CanOwnOutput())
                 {
-                    lastWrite = null;
+                    writes.Reset();
                     return;
                 }
 
@@ -93,7 +90,9 @@ internal sealed class NativeLightingService(EdgeMonitor monitor, AppSettings set
                 {
                     // The report only enables RGB lightbar fields; all other valid flags remain unset.
                     bool initialize = initializedPath != path;
-                    NativeLightbar.WriteColor(path, state.Transport.Value, color.Value, sequence, initialize);
+                    if (!writes.TryWrite(key, () =>
+                        NativeLightbar.WriteColor(path, state.Transport.Value, color.Value, sequence, initialize)))
+                        return;
                     sequence += (byte)(initialize ? 2 : 1);
                     initializedPath = path;
                     SetStatus("Lightbar command sent; physical response not verified");

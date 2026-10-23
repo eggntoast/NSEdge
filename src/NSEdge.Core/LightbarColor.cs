@@ -67,6 +67,8 @@ public static class LightbarPolicy
             return palette.High;
         }
 
+        // A medium boundary of 100% is valid, but leaves no high-range span to divide by.
+        if (percent >= 100) return palette.High;
         if (percent <= palette.CriticalBelowPercent) return palette.Critical;
         if (percent < palette.LowBelowPercent)
             return LightbarColor.Blend(palette.Critical, palette.Low,
