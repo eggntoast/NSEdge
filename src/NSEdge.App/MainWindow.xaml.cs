@@ -48,6 +48,9 @@ public partial class MainWindow : Window
         ConnectionText.Text = connected
             ? status.Transport == EdgeTransport.Bluetooth ? "DualSense Edge  ·  Bluetooth" : "DualSense Edge  ·  USB"
             : status.Detail;
+        ProfileText.ToolTip = status.NamesFromUsbCache
+            ? "Name saved from an earlier USB connection. Reconnect by USB after changing Sony profiles."
+            : null;
         ProfileText.Text = status.Profile == EdgeProfile.Unknown
             ? connected && status.Transport == EdgeTransport.Bluetooth
                 ? "Profile not verified"

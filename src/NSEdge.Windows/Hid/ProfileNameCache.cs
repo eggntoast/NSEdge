@@ -12,10 +12,12 @@ internal sealed class ProfileNameCache
     private readonly string folder;
     private readonly byte[] secret;
 
-    public ProfileNameCache()
+    public ProfileNameCache() : this(Path.Combine(Environment.GetFolderPath(
+        Environment.SpecialFolder.LocalApplicationData), "NSEdge", "profile-names")) { }
+
+    internal ProfileNameCache(string directory)
     {
-        folder = Path.Combine(Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData), "NSEdge", "profile-names");
+        folder = directory;
         Directory.CreateDirectory(folder);
         string keyFile = Path.Combine(folder, "identity.key");
         if (!File.Exists(keyFile))
