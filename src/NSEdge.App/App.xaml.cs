@@ -107,6 +107,21 @@ public partial class App : System.Windows.Application
             disconnectMenuItem = new Forms.ToolStripMenuItem("Disconnect Bluetooth controller", null,
                 (_, _) => DisconnectBluetoothController()) { Enabled = false };
             menu.Items.Add(disconnectMenuItem);
+            menu.Opening += (_, _) =>
+            {
+                if (disconnectMenuItem is null) return;
+                bool running = false;
+                try
+                {
+                    var processes = System.Diagnostics.Process.GetProcessesByName("DS4Windows");
+                    running = processes.Length > 0;
+                    foreach (var process in processes) process.Dispose();
+                }
+                catch (System.ComponentModel.Win32Exception) { }
+                disconnectMenuItem.Enabled = running && monitor?.Current is
+                    { Connected: true, Transport: EdgeTransport.Bluetooth } &&
+                    monitor.CurrentControllerIdentity is not null;
+            };
             menu.Items.Add(new Forms.ToolStripSeparator());
             menu.Items.Add("Exit", null, (_, _) => Shutdown());
             tray.ContextMenuStrip = menu;

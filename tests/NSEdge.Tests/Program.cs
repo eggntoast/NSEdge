@@ -60,6 +60,7 @@ Test("Bluetooth lightbar output frames and authenticates colour", () =>
     Check(report[4] == 0x04 && report[47] == 0x14 && report[48] == 0x9A && report[49] == 0xFE);
     uint actual = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(report.AsSpan(74));
     Check(actual == DualSenseLightbarReport.CalculateOutputCrc(report.AsSpan(0, 74)));
+    Check(actual == 0x2796F2F6u); // Independent IEEE CRC-32 of 0xA2 + 74 output bytes.
     report[48] ^= 1;
     Check(actual != DualSenseLightbarReport.CalculateOutputCrc(report.AsSpan(0, 74)));
 });
