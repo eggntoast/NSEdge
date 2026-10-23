@@ -6,6 +6,8 @@ namespace NSEdge.Windows.Hid;
 public sealed record EdgeStatus(bool Connected, EdgeProfile Profile, ProfileNames Names, long ReportCount, string Detail, EdgeBattery Battery)
 {
     public byte? BatteryStatusRaw { get; init; }
+    public bool NamesFromUsbCache { get; init; }
+    public byte? UsbProfileCandidate { get; init; }
     public byte? BluetoothProfileCandidate { get; init; }
     public EdgeTransport? Transport { get; init; }
     public string ScanSummary { get; init; } = "Not scanned";
@@ -22,6 +24,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
     private int refreshRequested;
     private EdgeStatus current = EdgeStatus.Disconnected;
     private long lastReportTicks;
+    private ProfileNameCache? nameCache;
 
     public event Action<EdgeStatus>? Updated;
     public event Action<EdgeBattery>? PsPressed;
@@ -101,13 +104,35 @@ public sealed class EdgeMonitor : IAsyncDisposable
         Interlocked.Exchange(ref lastReportTicks, 0);
 
         bool bluetooth = transport == EdgeTransport.Bluetooth;
+        string? controllerId = bluetooth
+            ? NativeMethods.TryReadBluetoothIdentity(handle)
+            : NativeMethods.TryReadUsbIdentity(handle);
         ProfileNames names = bluetooth ? ProfileNames.Empty : ReadNames(handle);
+        bool cachedNames = false;
+        // Cache errors must not interrupt input monitoring.
+        try
+        {
+            nameCache ??= new ProfileNameCache();
+            if (bluetooth)
+            {
+                names = nameCache.Read(controllerId);
+                cachedNames = names != ProfileNames.Empty;
+            }
+            else
+                nameCache.Save(controllerId, names);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            names = bluetooth ? ProfileNames.Empty : names;
+        }
         var debounce = new ProfileDebouncer();
         var psButton = new PsPressDetector();
         var btCandidateObserver = new StableByteObserver();
+        var usbCandidateObserver = new StableByteObserver();
         EdgeBattery battery = EdgeBattery.Unavailable;
         byte? batteryStatusRaw = null;
         byte? profileCandidate = null;
+        byte? usbProfileCandidate = null;
         bool btCandidateChanged = false;
         byte[] buffer = new byte[reportLength];
         long reports = 0, minimalReports = 0, badCrcReports = 0;
@@ -122,6 +147,8 @@ public sealed class EdgeMonitor : IAsyncDisposable
             Transport = transport,
             BatteryStatusRaw = batteryStatusRaw,
             BluetoothProfileCandidate = profileCandidate,
+            UsbProfileCandidate = usbProfileCandidate,
+            NamesFromUsbCache = cachedNames,
             ScanSummary = scanSummary,
             MinimalReports = minimalReports,
             BadCrcReports = badCrcReports,
@@ -137,8 +164,13 @@ public sealed class EdgeMonitor : IAsyncDisposable
                 if (Interlocked.Exchange(ref refreshRequested, 0) == 1)
                 {
                     if (!bluetooth)
+                    {
                         names = ReadNames(handle);
-                    Publish(Snapshot(bluetooth ? "Bluetooth Sony profile-name access not verified" : "Names refreshed"));
+                        try { nameCache?.Save(controllerId, names); }
+                        catch (IOException) { }
+                        catch (UnauthorizedAccessException) { }
+                    }
+                    Publish(Snapshot(bluetooth ? "Bluetooth uses cached USB names when available" : "Names refreshed"));
                 }
 
                 int read = await stream.ReadAsync(buffer.AsMemory(), token).ConfigureAwait(false);
@@ -198,6 +230,8 @@ public sealed class EdgeMonitor : IAsyncDisposable
                         batteryStatusRaw = buffer[53];
                     }
                     profileChanged = debounce.Observe(EdgeProfileDecoder.Decode(buffer.AsSpan(0, read)));
+                    if (usbCandidateObserver.Observe(buffer[EdgeProfileDecoder.ProfileByteIndex]))
+                        usbProfileCandidate = usbCandidateObserver.Current;
                     detail = "USB input active";
                 }
 
@@ -207,7 +241,8 @@ public sealed class EdgeMonitor : IAsyncDisposable
                 if (psButton.Observe(psDown, DateTimeOffset.UtcNow))
                     PsPressed?.Invoke(battery);
 
-                if (profileChanged || batteryChanged || btCandidateChanged || reports == 1)
+                if (profileChanged || batteryChanged || btCandidateChanged || reports == 1 ||
+                    (!bluetooth && usbProfileCandidate is not null && reports % 250 == 0))
                     Publish(Snapshot(detail));
             }
         }

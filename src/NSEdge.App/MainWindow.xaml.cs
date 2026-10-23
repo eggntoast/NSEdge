@@ -55,8 +55,7 @@ public partial class MainWindow : Window
             : status.Names.DisplayName(status.Profile);
         ShortcutText.Text = status.Profile == EdgeProfile.Unknown ? "—" : EdgeProfileDecoder.Shortcut(status.Profile);
         BatteryText.Text = status.Connected
-            ? "Battery: " + status.Battery.Description +
-                (status.Transport == EdgeTransport.Bluetooth ? "  ·  Bluetooth" : "")
+            ? "Battery: " + status.Battery.Description
             : "Battery unavailable";
     }
 
