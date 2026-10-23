@@ -2,6 +2,15 @@ using NSEdge.Core;
 using NSEdge.Windows.Hid;
 
 int passed = 0;
+Test("DS4Windows disconnect targeting is controller-specific", () =>
+{
+    Check(Ds4ControllerTarget.IsMatch("AA:11:22:33:44:55", "aa1122334455", "BT"));
+    Check(Ds4ControllerTarget.IsMatch("AA1122334455", "aa-11-22-33-44-55", "Bluetooth"));
+    Check(!Ds4ControllerTarget.IsMatch("AA1122334455", "AA1122334456", "BT"));
+    Check(!Ds4ControllerTarget.IsMatch("AA1122334455", "AA1122334455", "USB"));
+    Check(!Ds4ControllerTarget.IsMatch(null, "AA1122334455", "BT"));
+    Check(!Ds4ControllerTarget.IsMatch("AA1122334455", "unavailable", "BT"));
+});
 Test("Known profile states", () =>
 {
     Check(Decode(0x1C) == EdgeProfile.Default);
