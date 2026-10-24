@@ -10,42 +10,63 @@ public static class LightingLeaseProtocol
 /// <summary>In-memory representation of the *currently selected* profile and a temporary colour.</summary>
 public sealed class SimulatedLightbarSink
 {
-    public string CurrentProfile { get; private set; } = "";
-    public LightbarColor ProfileColour { get; private set; }
-    public LightbarColor? DisplayedColour { get; private set; }
-    public bool OverrideActive { get; private set; }
+    private readonly object sync = new();
+    private string currentProfile = "";
+    private LightbarColor profileColour;
+    private LightbarColor? displayedColour;
+    private bool overrideActive;
+
+    public string CurrentProfile { get { lock (sync) return currentProfile; } }
+    public LightbarColor ProfileColour { get { lock (sync) return profileColour; } }
+    public LightbarColor? DisplayedColour { get { lock (sync) return displayedColour; } }
+    public bool OverrideActive { get { lock (sync) return overrideActive; } }
 
     internal void Connect(string profile, LightbarColor colour)
     {
-        CurrentProfile = profile;
-        ProfileColour = colour;
-        OverrideActive = false;
-        DisplayedColour = colour;
+        lock (sync)
+        {
+            currentProfile = profile;
+            profileColour = colour;
+            overrideActive = false;
+            displayedColour = colour;
+        }
     }
 
     internal void ChangeProfile(string profile, LightbarColor colour)
     {
-        CurrentProfile = profile;
-        ProfileColour = colour;
-        if (!OverrideActive) DisplayedColour = colour;
+        lock (sync)
+        {
+            currentProfile = profile;
+            profileColour = colour;
+            if (!overrideActive) displayedColour = colour;
+        }
     }
 
     internal void Override(LightbarColor colour)
     {
-        OverrideActive = true;
-        DisplayedColour = colour;
+        lock (sync)
+        {
+            overrideActive = true;
+            displayedColour = colour;
+        }
     }
 
     internal void Restore()
     {
-        OverrideActive = false;
-        DisplayedColour = ProfileColour;
+        lock (sync)
+        {
+            overrideActive = false;
+            displayedColour = profileColour;
+        }
     }
 
     internal void Disconnect()
     {
-        OverrideActive = false;
-        DisplayedColour = null;
+        lock (sync)
+        {
+            overrideActive = false;
+            displayedColour = null;
+        }
     }
 }
 
