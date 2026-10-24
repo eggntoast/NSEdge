@@ -23,6 +23,9 @@ internal static class Program
             Test("Abandoned query mutex is recovered", Abandoned);
             Test("Closed host window fails safely", ClosedHost);
             Test("Query binds to the expected window PID", ProcessIdentity);
+            Test("Host shutdown during IPC response fails closed", HostShutdown);
+            Test("Hung fake IPC window respects send timeout", HungWindow);
+            Test("Overall discovery budget prevents repeated long waits", OverallBudget);
             Console.WriteLine($"Passed {passed} Windows IPC integration tests.");
             return 0;
         }
@@ -168,6 +171,50 @@ internal static class Program
         Require(!host.IsAlive());
     }
 
+    private static void HostShutdown()
+    {
+        using var host = new FakeQueryHost();
+        host.Respond = _ =>
+        {
+            host.ScheduleClose();
+            return null;
+        };
+        Throws<IOException>(() =>
+            Ds4QueryTransport.Query(host.Handle, 1, "MacAddress", host.Names,
+                TimeSpan.FromSeconds(1), host.IsAlive));
+        Require(!host.IsAlive());
+    }
+
+    private static void HungWindow()
+    {
+        using var host = new FakeQueryHost();
+        host.Respond = _ =>
+        {
+            Thread.Sleep(400); // Simulates an unresponsive IPC message handler
+            return null;
+        };
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        Throws<IOException>(() =>
+            Ds4QueryTransport.Query(host.Handle, 1, "MacAddress", host.Names,
+                TimeSpan.FromMilliseconds(150), host.IsAlive));
+        Require(timer.Elapsed < TimeSpan.FromSeconds(2));
+    }
+
+    private static void OverallBudget()
+    {
+        using var host = new FakeQueryHost();
+        host.Respond = _ => null;
+        var time = System.Diagnostics.Stopwatch.StartNew();
+        var budget = System.Diagnostics.Stopwatch.StartNew();
+        Ds4ProbeScan scan = Ds4ReadOnlyProbeLogic.Scan("AA1122334455",
+            EdgeTransport.Bluetooth,
+            (slot, property) => Ds4QueryTransport.Query(host.Handle, slot, property,
+                host.Names, TimeSpan.FromMilliseconds(270) - budget.Elapsed, host.IsAlive),
+            host.IsAlive);
+        Require(scan.Code == Ds4ProbeCode.QueryFailed);
+        Require(time.Elapsed < TimeSpan.FromSeconds(2));
+    }
+
     private static byte[] Bytes(string value) => Encoding.ASCII.GetBytes(value + "\0");
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -209,6 +256,12 @@ internal sealed class FakeQueryHost : IDisposable
         thread.Start();
         if (!ready.Wait(TimeSpan.FromSeconds(5)) || Handle == 0)
             throw new InvalidOperationException("Fake IPC test window failed to start.");
+    }
+
+    public void ScheduleClose()
+    {
+        if (window is { IsHandleCreated: true } form)
+            form.BeginInvoke(new Action(form.Close));
     }
 
     public void CloseWindow()
