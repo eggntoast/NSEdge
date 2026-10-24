@@ -59,8 +59,31 @@ internal static class Ds4WindowsIpc
         finally { Marshal.FreeHGlobal(message); }
     }
 
-    private static string Query(nint host, int slot, string property) =>
-        Ds4QueryTransport.Query(host, slot, property, Ds4QueryNames.Production, TimeSpan.FromSeconds(6));
+    private static string Query(nint host, int slot, string property)
+    {
+        using var mutex = new Mutex(false, "DS4Windows_IPCResultData_SingleTaskMtx");
+        bool acquired;
+        try { acquired = mutex.WaitOne(TimeSpan.FromSeconds(2)); }
+        catch (AbandonedMutexException) { acquired = true; }
+        if (!acquired)
+            throw new IOException("DS4Windows IPC is busy.");
+        try
+        {
+            using var map = MemoryMappedFile.CreateNew("DS4Windows_IPCResultData.dat", 256);
+            using var view = map.CreateViewAccessor();
+            using var ready = new EventWaitHandle(false, EventResetMode.AutoReset,
+                "DS4Windows_IPCResultData_ReadyEvent");
+            Send(host, $"Query.{slot}.{property}");
+            if (!ready.WaitOne(TimeSpan.FromSeconds(2)))
+                throw new IOException("DS4Windows IPC query timed out.");
+            byte[] data = new byte[256];
+            view.ReadArray(0, data, 0, data.Length);
+            int end = Array.IndexOf(data, (byte)0);
+            return Encoding.ASCII.GetString(data, 0, end < 0 ? data.Length : end).Trim();
+        }
+        finally { mutex.ReleaseMutex(); }
+    }
+
 
     // Fingerprint of the published Ryochan7 3.3.3 DLL, not a user-specific controller value.
     private const string Known333DllSha256 =
