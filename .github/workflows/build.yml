@@ -31,6 +31,9 @@ jobs:
       - name: Protocol tests
         run: dotnet run --project tests/NSEdge.Tests --configuration Release --no-build
 
+      - name: Windows IPC integration tests (isolated fake host)
+        run: dotnet run --project tests/NSEdge.IpcTests --configuration Release --no-build
+
       - name: Publish Windows app
         run: dotnet publish src/NSEdge.App/NSEdge.App.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true --output artifacts/package/NSEdge
 
