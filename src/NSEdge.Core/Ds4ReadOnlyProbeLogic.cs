@@ -97,5 +97,5 @@ public static class Ds4ReadOnlyProbeLogic
         }
     }
 
-    private sealed class HostChangedException : Exception;
+    private sealed class HostChangedException : Exception { }
 }
