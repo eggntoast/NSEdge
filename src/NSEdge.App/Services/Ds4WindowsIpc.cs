@@ -130,41 +130,23 @@ internal static class Ds4WindowsIpc
                 return new("Unrecognized DS4Windows build — no IPC queries sent",
                     process.Id, productVersion, null, null, false);
 
-            var observed = new List<Ds4ControllerObservation>(4);
-            for (int slot = 1; slot <= 4; slot++)
-            {
-                string address = Query(host, slot, "MacAddress");
-                string? transport = null;
-                string? profile = null;
-                if (ControllerIdentity.Normalize(address) == expected)
-                {
-                    transport = Query(host, slot, "ConnType");
-                    profile = Query(host, slot, "ProfileName");
-                }
-                observed.Add(new(slot, address, transport, profile));
-            }
+            // Source-confirmed Ryochan7 3.3.3 maximum is eight physical slots.
+            // All queries are read-only; a failed query cannot authorize future output.
+            bool HostUnchanged() =>
+                GetWindowThreadProcessId(host, out uint currentPid) != 0 &&
+                currentPid == ownerPid && !process.HasExited && process.StartTime == started;
 
-            Ds4Selection selection = Ds4ReadOnlySelection.Find(expected, expectedTransport, observed);
-            // A slot can change while three independent IPC queries are in progress.
-            if (selection.IsMatched && selection.Controller is { } match)
-            {
-                if (ControllerIdentity.Normalize(Query(host, match.Slot, "MacAddress")) != expected ||
-                    !Ds4ReadOnlySelection.Find(expected, expectedTransport,
-                        new[] { new Ds4ControllerObservation(match.Slot, expected,
-                            Query(host, match.Slot, "ConnType"), match.Profile) }).IsMatched)
-                    return new("Controller slot changed during the probe",
-                        process.Id, productVersion, null, null, true);
-            }
+            Ds4ProbeScan scan = Ds4ReadOnlyProbeLogic.Scan(expected, expectedTransport,
+                (slot, property) => Query(host, slot, property), HostUnchanged);
 
-            if (GetWindowThreadProcessId(host, out uint finalPid) == 0 ||
-                finalPid != ownerPid || process.HasExited || process.StartTime != started)
+            if (!HostUnchanged())
                 return new("DS4Windows restarted during the probe", null, productVersion, null, null, true);
 
-            return selection.IsMatched
+            return scan.IsMatched
                 ? new("Controller matched (read-only; no lighting control)", process.Id,
-                    productVersion, selection.Controller!.Slot,
-                    string.IsNullOrWhiteSpace(selection.Controller.Profile) ? "(not reported)" : selection.Controller.Profile, true)
-                : new("Controller not matched: " + selection.Status, process.Id, productVersion,
+                    productVersion, scan.Controller!.Slot,
+                    string.IsNullOrWhiteSpace(scan.Controller.Profile) ? "(not reported)" : scan.Controller.Profile, true)
+                : new("Controller not matched: " + scan.Code, process.Id, productVersion,
                     null, null, true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
