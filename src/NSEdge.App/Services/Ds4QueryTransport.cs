@@ -87,7 +87,14 @@ internal static class Ds4QueryTransport
             }
             finally { Marshal.FreeHGlobal(ptr); }
 
-            if (!ready.WaitOne(RemainingMillis())) throw new TimeoutException("DS4Windows query response timed out.");
+            // Poll with bounded waits so a replaced/closed IPC host is detected
+            // without waiting for the whole query timeout. A reply still needs the
+            // named event from this request, not merely successful WM_COPYDATA delivery.
+            while (true)
+            {
+                if (!Stable()) throw new IOException("DS4Windows IPC host changed.");
+                if (ready.WaitOne(Math.Min(50, RemainingMillis()))) break;
+            }
             if (!Stable()) throw new IOException("DS4Windows IPC host changed.");
 
             byte[] response = new byte[ResultSize];
