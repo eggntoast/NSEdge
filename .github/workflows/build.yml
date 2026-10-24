@@ -22,7 +22,7 @@ jobs:
         run: |
           [xml]$project = Get-Content src/NSEdge.App/NSEdge.App.csproj -Raw
           $version = [string]$project.Project.PropertyGroup.Version
-          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid version: $version" }
+          if ($version -notmatch '^\d+\.\d+$') { throw "Invalid version: $version" }
           "NSEDGE_VERSION=$version" >> $env:GITHUB_ENV
 
       - name: Build
@@ -30,6 +30,9 @@ jobs:
 
       - name: Protocol tests
         run: dotnet run --project tests/NSEdge.Tests --configuration Release --no-build
+
+      - name: Windows IPC integration tests (isolated fake host)
+        run: dotnet run --project tests/NSEdge.IpcTests --configuration Release --no-build
 
       - name: Publish Windows app
         run: dotnet publish src/NSEdge.App/NSEdge.App.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true --output artifacts/package/NSEdge

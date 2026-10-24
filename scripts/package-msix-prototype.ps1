@@ -7,8 +7,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 [xml]$project = Get-Content (Join-Path $root 'src/NSEdge.App/NSEdge.App.csproj') -Raw
 $version = [string]$project.Project.PropertyGroup.Version
-if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid version: $version" }
-$msixVersion = "$version.0"
+if ($version -notmatch '^\d+\.\d+$') { throw "Invalid version: $version" }
+$msixVersion = "$version.0.0"
 
 $layout = Join-Path $OutputDirectory 'layout'
 $assets = Join-Path $layout 'Assets'

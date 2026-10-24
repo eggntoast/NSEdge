@@ -294,9 +294,15 @@ public partial class App : System.Windows.Application
         settingsWindow.Activate();
     }
 
-    private void ShowDiagnostics()
+    private async void ShowDiagnostics()
     {
         EdgeStatus status = monitor?.Current ?? EdgeStatus.Disconnected;
+        string? identity = monitor?.CurrentControllerIdentity;
+        // Only stock Query messages are sent, on a worker thread so IPC timeouts
+        // cannot freeze the tray or settings window.
+        Ds4ReadOnlyProbeResult probe = await Task.Run(() =>
+            Ds4WindowsIpc.ProbeReadOnly(identity, status.Transport));
+        if (IsExiting || Dispatcher.HasShutdownStarted) return;
         System.Windows.MessageBox.Show(
             $"Connected: {status.Connected}\nTransport: {status.Transport?.ToString() ?? "None"}\nProfile: {status.Profile}\n" +
             $"Name: {status.Names.DisplayName(status.Profile)}\n" +
@@ -311,6 +317,7 @@ public partial class App : System.Windows.Application
             $"Controller identification: {status.IdentityStatus}\n" +
             $"Bluetooth Sony name reports: {status.BluetoothNameStatus}\n" +
             $"Native lighting: {lighting?.Status ?? "Unavailable"}\n" +
+            $"DS4Windows compatibility (read-only):\n{probe.Summary}\n" +
             $"Names from USB cache: {status.NamesFromUsbCache}\n" +
             $"Reports: {status.ReportCount}; BT minimal: {status.MinimalReports}; bad CRC: {status.BadCrcReports}\n" +
             $"Last input (UTC): {status.LastInputUtc?.ToString("O") ?? "None"}\n" +

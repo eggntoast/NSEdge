@@ -35,7 +35,7 @@ public partial class MainWindow : Window
         DurationText.Text = $"{settings.NotificationSeconds:0.0} s";
         try { AutostartCheck.IsChecked = StartupManager.IsEnabled(); }
         catch (Exception ex) { Log.Write("Startup entry unavailable: " + ex.Message); }
-        VersionText.Text = $"v{typeof(App).Assembly.GetName().Version?.ToString(3)}  ·  NS";
+        VersionText.Text = $"v{typeof(App).Assembly.GetName().Version?.ToString(2)}  ·  NS";
         initializing = false;
         UpdateLightingStatus();
     }
