@@ -34,3 +34,7 @@ dotnet run --project src/NSEdge.App -c Release
 MIT — see [LICENSE](LICENSE). Copyright (c) 2026 NS.
 
 NSEdge is independent software and is not affiliated with Sony Interactive Entertainment.
+
+## Development versions
+
+The next public version uses the two-part tag v0.3 (then v0.4, v0.5). Existing release tags remain unchanged. Internal .NET assembly/file versions may retain four numeric components. A CI build is not a public release.
