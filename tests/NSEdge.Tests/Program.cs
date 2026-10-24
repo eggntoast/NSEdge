@@ -94,6 +94,107 @@ Test("Only matching controller sessions may acquire simulated output", () =>
     Check(host.Acquire("AA1122334455", host.ConnectionGeneration + 1) is null);
 });
 
+Test("Fake DS4 host matches controller in slot eight", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.Set(8, "AA1122334455", "BT", "Default");
+    Ds4ProbeScan scan = Ds4ReadOnlyProbeLogic.Scan("AA:11:22:33:44:55",
+        EdgeTransport.Bluetooth, host.Query, host.IsStable);
+    Check(scan.IsMatched && scan.Controller!.Slot == 8 && scan.Controller.Profile == "Default");
+    Check(host.Calls.All(c => c.Property is "MacAddress" or "ConnType" or "ProfileName"));
+    Check(host.Calls.All(c => c.Slot >= 1 && c.Slot <= 8));
+});
+Test("Fake DS4 host rejects a duplicate identity in slot eight", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.Set(1, "AA1122334455", "BT", "Default");
+    host.Set(8, "AA1122334455", "BT", "Default");
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.DuplicateIdentity);
+});
+Test("Fake DS4 host rejects mismatched transport and absent identity", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.Set(4, "AA1122334455", "USB", "Default");
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.TransportMismatch);
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334456", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.ControllerNotFound);
+    int calls = host.Calls.Count;
+    Check(Ds4ReadOnlyProbeLogic.Scan(null, EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.IdentityUnavailable);
+    Check(host.Calls.Count == calls);
+});
+Test("Fake DS4 host rejects malformed IPC answers", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.OnQuery = (slot, prop, _) => prop == "MacAddress" && slot == 1 ? "not-an-address" : "";
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.MalformedResponse);
+    host.OnQuery = (_, prop, _) => prop == "MacAddress" ? new string('A', 256) : "";
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.MalformedResponse);
+    host.OnQuery = (_, prop, _) => prop == "MacAddress" ? "AA11\n22334455" : "";
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.MalformedResponse);
+});
+Test("Fake DS4 host fails closed on IPC timeout and exception", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.Error = new TimeoutException("Fake timeout");
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.QueryFailed);
+    host.Error = new IOException("Fake broken shared memory");
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.QueryFailed);
+});
+Test("Fake DS4 host detects process restart midway through query", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.Set(1, "AA1122334455", "BT", "Default");
+    host.AfterQuery = count => { if (count == 2) host.Stable = false; };
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.HostChanged);
+    Check(!host.Calls.Any(c => c.Property == "ProfileName"));
+});
+Test("Fake DS4 host rejects slot and profile changes during read", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.Set(1, "AA1122334455", "BT", "Default");
+    host.OnQuery = (slot, prop, count) =>
+        slot == 1 && prop == "MacAddress" && count > 8 ? "AA1122334456" : host.Value(slot, prop);
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.ChangedDuringProbe);
+    host = new FakeDs4QueryHost();
+    host.Set(1, "AA1122334455", "BT", "Default");
+    host.OnQuery = (slot, prop, count) =>
+        slot == 1 && prop == "ProfileName" && count > 8 ? "Second profile" : host.Value(slot, prop);
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.ChangedDuringProbe);
+});
+Test("Fake DS4 host prevents stale process claim before any query", () =>
+{
+    var host = new FakeDs4QueryHost { Stable = false };
+    host.Set(1, "AA1122334455", "BT", "Default");
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.HostChanged);
+    Check(host.Calls.Count == 0);
+});
+Test("Concurrent simulated lease acquisition remains exclusive", () =>
+{
+    var host = new SimulatedLightingLeaseHost("AA1122334455",
+        new SimulatedLightbarSink(), TimeProvider.System, TimeSpan.FromMinutes(1));
+    host.Connect("AA1122334455", "Default", new(5, 5, 5));
+    var acquired = new System.Collections.Concurrent.ConcurrentBag<Guid>();
+    Parallel.For(0, 64, _ =>
+    {
+        Guid? token = host.Acquire("AA1122334455", host.ConnectionGeneration);
+        if (token is Guid granted) acquired.Add(granted);
+    });
+    Check(acquired.Count == 1);
+    Check(host.Release(acquired.Single()));
+    Check(!host.HasLease);
+});
 Test("Lightbar RGB input parsing", () =>
 {
     Check(LightbarColor.TryParse("#12aBcF", out var color));
@@ -654,3 +755,36 @@ sealed class TestClock : TimeProvider
     public void Advance(TimeSpan delta) => now += delta.Ticks;
 }
 
+
+
+sealed class FakeDs4QueryHost
+{
+    private readonly Dictionary<(int Slot, string Property), string> values = new();
+    public readonly List<(int Slot, string Property)> Calls = new();
+    public bool Stable { get; set; } = true;
+    public Exception? Error { get; set; }
+    public Action<int>? AfterQuery { get; set; }
+    public Func<int, string, int, string?>? OnQuery { get; set; }
+    public bool IsStable() => Stable;
+
+    public void Set(int slot, string address, string transport, string profile)
+    {
+        values[(slot, "MacAddress")] = address;
+        values[(slot, "ConnType")] = transport;
+        values[(slot, "ProfileName")] = profile;
+    }
+
+    public string Value(int slot, string property) =>
+        values.TryGetValue((slot, property), out string? value) ? value : "";
+
+    public string? Query(int slot, string property)
+    {
+        if (property is not ("MacAddress" or "ConnType" or "ProfileName"))
+            throw new InvalidOperationException("Fake host forbids non-Query operations");
+        Calls.Add((slot, property));
+        if (Error is not null) throw Error;
+        string? value = OnQuery is null ? Value(slot, property) : OnQuery(slot, property, Calls.Count);
+        AfterQuery?.Invoke(Calls.Count);
+        return value;
+    }
+}
