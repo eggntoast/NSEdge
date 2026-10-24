@@ -55,6 +55,7 @@ public sealed class SimulatedLightbarSink
 /// </summary>
 public sealed class SimulatedLightingLeaseHost
 {
+    private readonly object sync = new();
     private readonly TimeProvider clock;
     private readonly TimeSpan leaseDuration;
     private readonly string physicalIdentity;
@@ -62,6 +63,7 @@ public sealed class SimulatedLightingLeaseHost
     private Guid currentToken;
     private long lastRenewal;
     private bool connected;
+    private long generation;
 
     public SimulatedLightingLeaseHost(string physicalIdentity, SimulatedLightbarSink sink,
         TimeProvider clock, TimeSpan? leaseDuration = null)
@@ -77,85 +79,111 @@ public sealed class SimulatedLightingLeaseHost
 
     public int ProtocolVersion => LightingLeaseProtocol.Version;
     public bool SupportsPhysicalOutput => false;
-    public bool Connected => connected;
-    public long ConnectionGeneration { get; private set; }
+    public bool Connected { get { lock (sync) return connected; } }
+    public long ConnectionGeneration { get { lock (sync) return generation; } }
     public bool HasLease
     {
-        get { Expire(); return currentToken != Guid.Empty; }
+        get { lock (sync) { ExpireLocked(); return currentToken != Guid.Empty; } }
     }
 
     public void Connect(string identity, string activeProfile, LightbarColor currentProfileColour)
     {
-        if (ControllerIdentity.Normalize(identity) != physicalIdentity)
-            throw new InvalidOperationException("Physical controller identity does not match.");
-        if (string.IsNullOrWhiteSpace(activeProfile))
-            throw new ArgumentException("A profile must be selected.", nameof(activeProfile));
-        ClearLease();
-        ConnectionGeneration = checked(ConnectionGeneration + 1);
-        connected = true;
-        sink.Connect(activeProfile, currentProfileColour);
+        lock (sync)
+        {
+            if (ControllerIdentity.Normalize(identity) != physicalIdentity)
+                throw new InvalidOperationException("Physical controller identity does not match.");
+            if (string.IsNullOrWhiteSpace(activeProfile))
+                throw new ArgumentException("A profile must be selected.", nameof(activeProfile));
+            ClearLeaseLocked();
+            generation = checked(generation + 1);
+            connected = true;
+            sink.Connect(activeProfile, currentProfileColour);
+        }
     }
 
     public void ChangeProfile(string profile, LightbarColor colour)
     {
-        if (!connected) throw new InvalidOperationException("Controller is disconnected.");
-        if (string.IsNullOrWhiteSpace(profile)) throw new ArgumentException("Invalid profile.", nameof(profile));
-        Expire();
-        sink.ChangeProfile(profile, colour);
+        lock (sync)
+        {
+            if (!connected) throw new InvalidOperationException("Controller is disconnected.");
+            if (string.IsNullOrWhiteSpace(profile)) throw new ArgumentException("Invalid profile.", nameof(profile));
+            ExpireLocked();
+            sink.ChangeProfile(profile, colour);
+        }
     }
 
     public void Disconnect()
     {
-        ClearLease();
-        connected = false;
-        sink.Disconnect();
+        lock (sync)
+        {
+            ClearLeaseLocked();
+            connected = false;
+            sink.Disconnect();
+        }
     }
 
     public Guid? Acquire(string identity, long connectionGeneration)
     {
-        Expire();
-        if (!connected || connectionGeneration != ConnectionGeneration ||
-            ControllerIdentity.Normalize(identity) != physicalIdentity || currentToken != Guid.Empty)
-            return null;
-        currentToken = Guid.NewGuid();
-        lastRenewal = clock.GetTimestamp();
-        return currentToken;
+        lock (sync)
+        {
+            ExpireLocked();
+            if (!connected || connectionGeneration != generation ||
+                ControllerIdentity.Normalize(identity) != physicalIdentity || currentToken != Guid.Empty)
+                return null;
+            currentToken = Guid.NewGuid();
+            lastRenewal = clock.GetTimestamp();
+            return currentToken;
+        }
     }
 
     public bool SetColor(Guid token, LightbarColor colour)
     {
-        Expire();
-        if (currentToken == Guid.Empty || token != currentToken) return false;
-        sink.Override(colour);
-        return true;
+        lock (sync)
+        {
+            ExpireLocked();
+            if (currentToken == Guid.Empty || token != currentToken) return false;
+            sink.Override(colour);
+            return true;
+        }
     }
 
     public bool Renew(Guid token)
     {
-        Expire();
-        if (currentToken == Guid.Empty || token != currentToken) return false;
-        lastRenewal = clock.GetTimestamp();
-        return true;
+        lock (sync)
+        {
+            ExpireLocked();
+            if (currentToken == Guid.Empty || token != currentToken) return false;
+            lastRenewal = clock.GetTimestamp();
+            return true;
+        }
     }
 
     public bool Release(Guid token)
     {
-        Expire();
-        if (currentToken == Guid.Empty || token != currentToken) return false;
-        ClearLease();
-        return true;
+        lock (sync)
+        {
+            ExpireLocked();
+            if (currentToken == Guid.Empty || token != currentToken) return false;
+            ClearLeaseLocked();
+            return true;
+        }
     }
 
-    /// <summary>Invoked by a future server timer; models recovery when a client disappears.</summary>
+    /// <summary>Only a simulated server calls this. A real host must schedule its own timer.</summary>
     public bool Expire()
+    {
+        lock (sync) return ExpireLocked();
+    }
+
+    private bool ExpireLocked()
     {
         if (currentToken == Guid.Empty) return false;
         if (clock.GetElapsedTime(lastRenewal, clock.GetTimestamp()) < leaseDuration) return false;
-        ClearLease();
+        ClearLeaseLocked();
         return true;
     }
 
-    private void ClearLease()
+    private void ClearLeaseLocked()
     {
         currentToken = Guid.Empty;
         if (connected) sink.Restore();
