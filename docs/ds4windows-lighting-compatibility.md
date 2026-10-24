@@ -40,6 +40,39 @@ Regression tests cover exclusive ownership, invalid identity and transport match
 
 These tests do not verify actual colour changes, physical HID output, profile persistence, rumble, gyro, Windows IPC behaviour or real crash recovery.
 
+## Windows IPC verification (v0.3 draft)
+
+The Windows Build workflow runs the original protocol suite and `tests/NSEdge.IpcTests`.
+This separate Windows-only test executable compiles the same
+`Ds4QueryTransport.cs` used by the production read-only Diagnostics path,
+but supplies **random test-specific** mutex, result-map and event names.
+Its host is a small local WinForms message window. It never publishes the
+stock DS4Windows window class, uses no DS4Windows process identity, and never
+connects to a Sony device.
+
+Coverage includes real WM_COPYDATA delivery, correct command string/slot,
+shared-memory response bytes, named event acknowledgment, abandoned/contended
+mutexes, stale events, invalid and non-ASCII results, hung/closed windows,
+host shutdown during a response and a bounded overall scan deadline.
+None of these tests sends native HID or `changeledcolor` commands.
+
+The read-only probe itself scans at most eight physical DS4Windows slots with
+an eight-second query budget (after local process/version fingerprint checks).
+A timeout or identity change is treated as failed discovery, not evidence
+that output control is available. A native window's owning PID can be read
+through GetWindowThreadProcessId, but this does not constitute process
+authentication, nor does a DLL checksum guarantee an unmodified loaded image.
+
+The existing, manually confirmed Bluetooth disconnect feature deliberately
+retains its previous IPC transport until that **state-changing** path has its
+own hardware acceptance tests. The new transport is used only for read-only
+queries.
+
+A future integration must also verify the stock IPC class-name discovery map
+against the user's installed 3.3.3 process. The fake test uses an injected
+window handle rather than impersonating an installed DS4Windows executable.
+It cannot prove actual real-process compatibility.
+
 ## Future physical acceptance gate (separate authorization)
 
 1. Verify the read-only process/identity/profile probe against installed 3.3.3. Capture recognized fingerprint, PID, matching slot, transport and software profile; no lighting commands.
