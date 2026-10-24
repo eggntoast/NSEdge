@@ -596,14 +596,6 @@ static void Check(bool condition)
     if (!condition) throw new InvalidOperationException("Assertion failed");
 }
 
-sealed class TestClock : TimeProvider
-{
-    private long now;
-    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
-    public override long GetTimestamp() => now;
-    public void Advance(TimeSpan delta) => now += delta.Ticks;
-}
-
 static EdgeProfile Decode(byte code) => EdgeProfileDecoder.Decode(Report(code));
 
 static byte[] Report(byte code)
@@ -653,3 +645,12 @@ static byte[] FullBluetoothReport()
     report[77] = 0x03;
     return report;
 }
+
+sealed class TestClock : TimeProvider
+{
+    private long now;
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+    public override long GetTimestamp() => now;
+    public void Advance(TimeSpan delta) => now += delta.Ticks;
+}
+
