@@ -59,30 +59,8 @@ internal static class Ds4WindowsIpc
         finally { Marshal.FreeHGlobal(message); }
     }
 
-    private static string Query(nint host, int slot, string property)
-    {
-        using var mutex = new Mutex(false, "DS4Windows_IPCResultData_SingleTaskMtx");
-        bool acquired;
-        try { acquired = mutex.WaitOne(TimeSpan.FromSeconds(2)); }
-        catch (AbandonedMutexException) { acquired = true; }
-        if (!acquired)
-            throw new IOException("DS4Windows IPC is busy.");
-        try
-        {
-            using var map = MemoryMappedFile.CreateNew("DS4Windows_IPCResultData.dat", 256);
-            using var view = map.CreateViewAccessor();
-            using var ready = new EventWaitHandle(false, EventResetMode.AutoReset,
-                "DS4Windows_IPCResultData_ReadyEvent");
-            Send(host, $"Query.{slot}.{property}");
-            if (!ready.WaitOne(TimeSpan.FromSeconds(2)))
-                throw new IOException("DS4Windows IPC query timed out.");
-            byte[] data = new byte[256];
-            view.ReadArray(0, data, 0, data.Length);
-            int end = Array.IndexOf(data, (byte)0);
-            return Encoding.ASCII.GetString(data, 0, end < 0 ? data.Length : end).Trim();
-        }
-        finally { mutex.ReleaseMutex(); }
-    }
+    private static string Query(nint host, int slot, string property) =>
+        Ds4QueryTransport.Query(host, slot, property, Ds4QueryNames.Production, TimeSpan.FromSeconds(6));
 
     // Fingerprint of the published Ryochan7 3.3.3 DLL, not a user-specific controller value.
     private const string Known333DllSha256 =
@@ -136,8 +114,11 @@ internal static class Ds4WindowsIpc
                 GetWindowThreadProcessId(host, out uint currentPid) != 0 &&
                 currentPid == ownerPid && !process.HasExited && process.StartTime == started;
 
+            var budget = Stopwatch.StartNew();
             Ds4ProbeScan scan = Ds4ReadOnlyProbeLogic.Scan(expected, expectedTransport,
-                (slot, property) => Query(host, slot, property), HostUnchanged);
+                (slot, property) => Ds4QueryTransport.Query(host, slot, property,
+                    Ds4QueryNames.Production, TimeSpan.FromSeconds(8) - budget.Elapsed, HostUnchanged),
+                HostUnchanged);
 
             if (!HostUnchanged())
                 return new("DS4Windows restarted during the probe", null, productVersion, null, null, true);
