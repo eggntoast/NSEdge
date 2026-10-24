@@ -2,6 +2,98 @@ using NSEdge.Core;
 using NSEdge.Windows.Hid;
 
 int passed = 0;
+Test("Read-only DS4 selection requires exact identity and transport", () =>
+{
+    var rows = new[] { new Ds4ControllerObservation(1, "AA:11:22:33:44:55", "BT", "Default") };
+    Check(Ds4ReadOnlySelection.Find("aa1122334455", EdgeTransport.Bluetooth, rows).IsMatched);
+    Check(Ds4ReadOnlySelection.Find("aa1122334455", EdgeTransport.Usb, rows).Status == Ds4SelectionStatus.TransportMismatch);
+    Check(Ds4ReadOnlySelection.Find("AA1122334456", EdgeTransport.Bluetooth, rows).Status == Ds4SelectionStatus.ControllerNotFound);
+    Check(Ds4ReadOnlySelection.Find(null, EdgeTransport.Bluetooth, rows).Status == Ds4SelectionStatus.ControllerIdentityUnavailable);
+    Check(Ds4ReadOnlySelection.Find("aa1122334455", null, rows).Status == Ds4SelectionStatus.ControllerIdentityUnavailable);
+    Check(!Ds4ReadOnlySelection.Find("aa1122334455", EdgeTransport.Bluetooth,
+        new[] { rows[0], rows[0] with { Slot = 2 } }).IsMatched);
+    Check(Ds4ReadOnlySelection.Find("aa1122334455", EdgeTransport.Bluetooth,
+        new[] { rows[0], rows[0] with { Slot = 2 } }).Status == Ds4SelectionStatus.DuplicateIdentity);
+});
+Test("Simulation supports exclusive lease and token-bound colour", () =>
+{
+    var clock = new TestClock();
+    var sink = new SimulatedLightbarSink();
+    var host = new SimulatedLightingLeaseHost("AA1122334455", sink, clock);
+    host.Connect("aa:11:22:33:44:55", "Default", new(120, 0, 120));
+    Check(host.ProtocolVersion == 1 && !host.SupportsPhysicalOutput);
+    Guid token = host.Acquire("AA1122334455", host.ConnectionGeneration)!.Value;
+    Check(host.Acquire("AA1122334455", host.ConnectionGeneration) is null);
+    Check(host.Acquire("AA1122334456", host.ConnectionGeneration) is null);
+    Check(!host.SetColor(Guid.NewGuid(), new(0, 255, 0)));
+    Check(host.SetColor(token, new(0, 255, 0)));
+    Check(sink.DisplayedColour == new LightbarColor(0, 255, 0) && sink.OverrideActive);
+    Check(!host.Release(Guid.NewGuid()));
+    Check(host.Release(token));
+    Check(!sink.OverrideActive && sink.DisplayedColour == new LightbarColor(120, 0, 120));
+});
+Test("Lease expiration restores the latest profile, not an old snapshot", () =>
+{
+    var clock = new TestClock();
+    var sink = new SimulatedLightbarSink();
+    var host = new SimulatedLightingLeaseHost("AA1122334455", sink, clock);
+    host.Connect("AA1122334455", "Purple", new(100, 0, 100));
+    Guid token = host.Acquire("AA1122334455", host.ConnectionGeneration)!.Value;
+    Check(host.SetColor(token, new(0, 200, 0)));
+    host.ChangeProfile("Blue", new(0, 0, 255));
+    Check(sink.DisplayedColour == new LightbarColor(0, 200, 0));
+    clock.Advance(TimeSpan.FromSeconds(5));
+    Check(host.Expire());
+    Check(!host.HasLease && !sink.OverrideActive && sink.CurrentProfile == "Blue");
+    Check(sink.DisplayedColour == new LightbarColor(0, 0, 255));
+    Check(!host.SetColor(token, new(5, 5, 5)) && !host.Renew(token));
+});
+Test("Lease renewal delays expiry but cannot resurrect an expired token", () =>
+{
+    var clock = new TestClock();
+    var sink = new SimulatedLightbarSink();
+    var host = new SimulatedLightingLeaseHost("AA1122334455", sink, clock);
+    host.Connect("AA1122334455", "Default", new(50, 50, 50));
+    Guid token = host.Acquire("AA1122334455", host.ConnectionGeneration)!.Value;
+    clock.Advance(TimeSpan.FromSeconds(4));
+    Check(host.Renew(token));
+    clock.Advance(TimeSpan.FromSeconds(4));
+    Check(!host.Expire() && host.HasLease);
+    clock.Advance(TimeSpan.FromSeconds(2));
+    Check(host.Expire() && !host.Renew(token));
+    Check(sink.DisplayedColour == new LightbarColor(50, 50, 50));
+});
+Test("Disconnect and reconnect invalidate stale lighting leases", () =>
+{
+    var clock = new TestClock();
+    var sink = new SimulatedLightbarSink();
+    var host = new SimulatedLightingLeaseHost("AA1122334455", sink, clock);
+    host.Connect("AA1122334455", "Default", new(80, 0, 80));
+    long firstGen = host.ConnectionGeneration;
+    Guid firstToken = host.Acquire("AA1122334455", firstGen)!.Value;
+    Check(host.SetColor(firstToken, new(255, 0, 0)));
+    host.Disconnect();
+    Check(!host.Connected && sink.DisplayedColour is null && !host.HasLease);
+    host.Connect("AA1122334455", "Silent Hill", new(0, 20, 220));
+    Check(host.ConnectionGeneration > firstGen);
+    Check(host.Acquire("AA1122334455", firstGen) is null);
+    Check(!host.Release(firstToken));
+    Check(!host.SetColor(firstToken, new(255, 255, 255)));
+    Check(sink.DisplayedColour == new LightbarColor(0, 20, 220));
+});
+Test("Only matching controller sessions may acquire simulated output", () =>
+{
+    var clock = new TestClock();
+    var host = new SimulatedLightingLeaseHost("AA1122334455", new SimulatedLightbarSink(), clock);
+    bool rejected = false;
+    try { host.Connect("AA1122334456", "Default", new(0, 0, 0)); }
+    catch (InvalidOperationException) { rejected = true; }
+    Check(rejected && !host.Connected);
+    host.Connect("AA1122334455", "Default", new(0, 0, 0));
+    Check(host.Acquire("AA1122334456", host.ConnectionGeneration) is null);
+    Check(host.Acquire("AA1122334455", host.ConnectionGeneration + 1) is null);
+});
+
 Test("Lightbar RGB input parsing", () =>
 {
     Check(LightbarColor.TryParse("#12aBcF", out var color));
@@ -502,6 +594,14 @@ void Test(string name, Action action)
 static void Check(bool condition)
 {
     if (!condition) throw new InvalidOperationException("Assertion failed");
+}
+
+sealed class TestClock : TimeProvider
+{
+    private long now;
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+    public override long GetTimestamp() => now;
+    public void Advance(TimeSpan delta) => now += delta.Ticks;
 }
 
 static EdgeProfile Decode(byte code) => EdgeProfileDecoder.Decode(Report(code));
