@@ -12,6 +12,12 @@ An independent Windows companion for Sony DualSense Edge controllers. NSEdge sho
 
 **Hardware limitations:** Native lightbar operation and automatic restoration of earlier lighting settings have not been physically validated. Output coordination while DS4Windows runs is not implemented. Lighting preferences may be enabled while physical output is paused; the app shows that state on the main window. Fn + Square active-profile decoding remains incomplete.
 
+## Current development prerelease
+
+**NSEdge v0.4** updates the dark settings menu, Diagnostics window, system-tray appearance and UI smoke coverage, alongside the accumulated private v0.3 monitoring/reliability improvements. Versioned builds now receive unique two-part versions (v0.4, v0.5, ...). Download the signed-off **prerelease** from [Releases](https://github.com/eggntoast/NSEdge/releases); GitHub Actions development artifacts are not public releases.
+
+**Not yet physically validated on all configurations:** new tray/menu styling, high-DPI accessibility, manual Bluetooth disconnect, Fn + Square detection, native lightbar writes, DS4Windows RGB control and crash-safe lighting restoration. Native lighting defaults off and pauses when other controller managers run. Never interpret simulated tests as physical validation.
+
 ## Download
 
 Get the current unsigned Windows x64 prerelease from [Releases](https://github.com/eggntoast/NSEdge/releases). Extract the ZIP and run `NSEdge.exe` inside the `NSEdge` folder. The self-contained build does not require a separate .NET installation.
