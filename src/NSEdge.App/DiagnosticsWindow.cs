@@ -108,7 +108,7 @@ internal sealed class DiagnosticsWindow : Window
         Content = layout;
     }
 
-    private static Button MakeButton(string label, string background) => new()
+    private static System.Windows.Controls.Button MakeButton(string label, string background) => new()
     {
         Content = label,
         MinWidth = 105,
