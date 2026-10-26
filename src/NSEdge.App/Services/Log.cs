@@ -4,10 +4,17 @@ namespace NSEdge.App.Services;
 public static class Log
 {
     private static readonly object Gate = new();
-    private static readonly string Pathname = System.IO.Path.Combine(
+    private static string Pathname = System.IO.Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NSEdge", "NSEdge.log");
 
     public static string Path => Pathname;
+
+    // Called explicitly by the isolated smoke-test entry point before any logging.
+    public static void InitializeForSmokeTest(string directory)
+    {
+        lock (Gate)
+            Pathname = System.IO.Path.Combine(System.IO.Path.GetFullPath(directory), "NSEdge.log");
+    }
 
     public static void Write(string message)
     {

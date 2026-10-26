@@ -2,6 +2,289 @@ using NSEdge.Core;
 using NSEdge.Windows.Hid;
 
 int passed = 0;
+Test("Async diagnostics rejects changed or unidentified controller sessions", () =>
+{
+    var captured = EdgeStatus.Disconnected with
+    {
+        Connected = true, ControllerIdentity = "AA1122334455", DevicePath = "test-device",
+        ConnectionGeneration = 1, Transport = EdgeTransport.Bluetooth
+    };
+    Check(captured.IsSameConnectionAs(captured with { ReportCount = 50 }));
+    Check(!captured.IsSameConnectionAs(captured with { ConnectionGeneration = 2 }));
+    Check(!captured.IsSameConnectionAs(captured with { ControllerIdentity = "AA1122334456" }));
+    Check(!captured.IsSameConnectionAs(captured with { Transport = EdgeTransport.Usb }));
+    Check(!captured.IsSameConnectionAs(captured with { DevicePath = "another-device" }));
+    Check(!captured.IsSameConnectionAs(captured with { Connected = false }));
+    Check(!captured.IsSameConnectionAs(captured with { ControllerIdentity = null }));
+    Check(!EdgeStatus.Disconnected.IsSameConnectionAs(EdgeStatus.Disconnected));
+});
+Test("Input freshness expires monotonically and clears across reconnects", () =>
+{
+    var clock = new TestClock();
+    var freshness = new InputFreshness(clock, TimeSpan.FromSeconds(15));
+    Check(!freshness.IsFresh);
+    freshness.Observe();
+    Check(freshness.IsFresh);
+    clock.Advance(TimeSpan.FromSeconds(14));
+    Check(freshness.IsFresh);
+    clock.Advance(TimeSpan.FromSeconds(1));
+    Check(!freshness.IsFresh);
+    freshness.Observe();
+    Check(freshness.IsFresh);
+    freshness.Reset();
+    Check(!freshness.IsFresh);
+    clock.Advance(TimeSpan.FromSeconds(120));
+    Check(!freshness.IsFresh);
+    freshness.Observe();
+    Check(freshness.IsFresh);
+    clock.Advance(TimeSpan.FromSeconds(-1));
+    Check(!freshness.IsFresh);
+});
+Test("Diagnostic heartbeat is bounded and uses monotonic time", () =>
+{
+    var clock = new TestClock();
+    var heartbeat = new StatusHeartbeat(clock);
+    for (int i = 0; i < 999; i++)
+    {
+        clock.Advance(TimeSpan.FromMilliseconds(1));
+        Check(!heartbeat.IsDue);
+    }
+    clock.Advance(TimeSpan.FromMilliseconds(1));
+    Check(heartbeat.IsDue);
+    heartbeat.Published();
+    Check(!heartbeat.IsDue);
+    clock.Advance(TimeSpan.FromSeconds(30));
+    Check(heartbeat.IsDue);
+    heartbeat.Published();
+    Check(!heartbeat.IsDue);
+});
+Test("Partial Sony reads preserve names while explicit unassignment clears them", () =>
+{
+    string folder = Path.Combine(Path.GetTempPath(), "NSEdge-partial-names-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var cache = new ProfileNameCache(folder);
+        var original = new ProfileNames("Circle saved", "Cross saved", "Square saved");
+        cache.Save("AA1122334455", original);
+        var partial = new ProfileNames("Circle updated", null, "");
+        var expected = new ProfileNames("Circle updated", "Cross saved", "");
+        Check(original.MergeRead(partial) == expected);
+        cache.Save("AA1122334455", partial);
+        Check(cache.Read("AA1122334455") == expected);
+        cache.Save("AA1122334455", ProfileNames.Empty);
+        Check(cache.Read("AA1122334455") == expected);
+        var cleared = new ProfileNames("", "", "");
+        cache.Save("AA1122334455", cleared);
+        Check(cache.Read("AA1122334455") == cleared);
+        cache.Save("AA1122334456", partial);
+        Check(cache.Read("AA1122334456") == partial);
+        Check(cache.Read("AA1122334455") == cleared);
+    }
+    finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+});
+Test("Failed Bluetooth name reads retain newer session names over stale cache", () =>
+{
+    var observed = new ProfileNames("New Circle", null, "New Square");
+    var cached = new ProfileNames("Old Circle", "Old Cross", "Old Square");
+    Check(observed.FillMissingFrom(cached) == new ProfileNames("New Circle", "Old Cross", "New Square"));
+    Check(observed.FillMissingFrom(ProfileNames.Empty) == observed);
+    Check(ProfileNames.Empty.FillMissingFrom(cached) == cached);
+    Check(new ProfileNames("", null, null).FillMissingFrom(cached) ==
+        new ProfileNames("", "Old Cross", "Old Square"));
+});
+Test("Read-only DS4 selection requires exact identity and transport", () =>
+{
+    var rows = new[] { new Ds4ControllerObservation(1, "AA:11:22:33:44:55", "BT", "Default") };
+    Check(Ds4ReadOnlySelection.Find("aa1122334455", EdgeTransport.Bluetooth, rows).IsMatched);
+    Check(Ds4ReadOnlySelection.Find("aa1122334455", EdgeTransport.Usb, rows).Status == Ds4SelectionStatus.TransportMismatch);
+    Check(Ds4ReadOnlySelection.Find("AA1122334456", EdgeTransport.Bluetooth, rows).Status == Ds4SelectionStatus.ControllerNotFound);
+    Check(Ds4ReadOnlySelection.Find(null, EdgeTransport.Bluetooth, rows).Status == Ds4SelectionStatus.ControllerIdentityUnavailable);
+    Check(Ds4ReadOnlySelection.Find("aa1122334455", null, rows).Status == Ds4SelectionStatus.ControllerIdentityUnavailable);
+    Check(!Ds4ReadOnlySelection.Find("aa1122334455", EdgeTransport.Bluetooth,
+        new[] { rows[0], rows[0] with { Slot = 2 } }).IsMatched);
+    Check(Ds4ReadOnlySelection.Find("aa1122334455", EdgeTransport.Bluetooth,
+        new[] { rows[0], rows[0] with { Slot = 2 } }).Status == Ds4SelectionStatus.DuplicateIdentity);
+});
+Test("Simulation supports exclusive lease and token-bound colour", () =>
+{
+    var clock = new TestClock();
+    var sink = new SimulatedLightbarSink();
+    var host = new SimulatedLightingLeaseHost("AA1122334455", sink, clock);
+    host.Connect("aa:11:22:33:44:55", "Default", new(120, 0, 120));
+    Check(host.ProtocolVersion == 1 && !host.SupportsPhysicalOutput);
+    Guid token = host.Acquire("AA1122334455", host.ConnectionGeneration)!.Value;
+    Check(host.Acquire("AA1122334455", host.ConnectionGeneration) is null);
+    Check(host.Acquire("AA1122334456", host.ConnectionGeneration) is null);
+    Check(!host.SetColor(Guid.NewGuid(), new(0, 255, 0)));
+    Check(host.SetColor(token, new(0, 255, 0)));
+    Check(sink.DisplayedColour == new LightbarColor(0, 255, 0) && sink.OverrideActive);
+    Check(!host.Release(Guid.NewGuid()));
+    Check(host.Release(token));
+    Check(!sink.OverrideActive && sink.DisplayedColour == new LightbarColor(120, 0, 120));
+});
+Test("Lease expiration restores the latest profile, not an old snapshot", () =>
+{
+    var clock = new TestClock();
+    var sink = new SimulatedLightbarSink();
+    var host = new SimulatedLightingLeaseHost("AA1122334455", sink, clock);
+    host.Connect("AA1122334455", "Purple", new(100, 0, 100));
+    Guid token = host.Acquire("AA1122334455", host.ConnectionGeneration)!.Value;
+    Check(host.SetColor(token, new(0, 200, 0)));
+    host.ChangeProfile("Blue", new(0, 0, 255));
+    Check(sink.DisplayedColour == new LightbarColor(0, 200, 0));
+    clock.Advance(TimeSpan.FromSeconds(5));
+    Check(host.Expire());
+    Check(!host.HasLease && !sink.OverrideActive && sink.CurrentProfile == "Blue");
+    Check(sink.DisplayedColour == new LightbarColor(0, 0, 255));
+    Check(!host.SetColor(token, new(5, 5, 5)) && !host.Renew(token));
+});
+Test("Lease renewal delays expiry but cannot resurrect an expired token", () =>
+{
+    var clock = new TestClock();
+    var sink = new SimulatedLightbarSink();
+    var host = new SimulatedLightingLeaseHost("AA1122334455", sink, clock);
+    host.Connect("AA1122334455", "Default", new(50, 50, 50));
+    Guid token = host.Acquire("AA1122334455", host.ConnectionGeneration)!.Value;
+    clock.Advance(TimeSpan.FromSeconds(4));
+    Check(host.Renew(token));
+    clock.Advance(TimeSpan.FromSeconds(4));
+    Check(!host.Expire() && host.HasLease);
+    clock.Advance(TimeSpan.FromSeconds(2));
+    Check(host.Expire() && !host.Renew(token));
+    Check(sink.DisplayedColour == new LightbarColor(50, 50, 50));
+});
+Test("Disconnect and reconnect invalidate stale lighting leases", () =>
+{
+    var clock = new TestClock();
+    var sink = new SimulatedLightbarSink();
+    var host = new SimulatedLightingLeaseHost("AA1122334455", sink, clock);
+    host.Connect("AA1122334455", "Default", new(80, 0, 80));
+    long firstGen = host.ConnectionGeneration;
+    Guid firstToken = host.Acquire("AA1122334455", firstGen)!.Value;
+    Check(host.SetColor(firstToken, new(255, 0, 0)));
+    host.Disconnect();
+    Check(!host.Connected && sink.DisplayedColour is null && !host.HasLease);
+    host.Connect("AA1122334455", "Silent Hill", new(0, 20, 220));
+    Check(host.ConnectionGeneration > firstGen);
+    Check(host.Acquire("AA1122334455", firstGen) is null);
+    Check(!host.Release(firstToken));
+    Check(!host.SetColor(firstToken, new(255, 255, 255)));
+    Check(sink.DisplayedColour == new LightbarColor(0, 20, 220));
+});
+Test("Only matching controller sessions may acquire simulated output", () =>
+{
+    var clock = new TestClock();
+    var host = new SimulatedLightingLeaseHost("AA1122334455", new SimulatedLightbarSink(), clock);
+    bool rejected = false;
+    try { host.Connect("AA1122334456", "Default", new(0, 0, 0)); }
+    catch (InvalidOperationException) { rejected = true; }
+    Check(rejected && !host.Connected);
+    host.Connect("AA1122334455", "Default", new(0, 0, 0));
+    Check(host.Acquire("AA1122334456", host.ConnectionGeneration) is null);
+    Check(host.Acquire("AA1122334455", host.ConnectionGeneration + 1) is null);
+});
+
+Test("Fake DS4 host matches controller in slot eight", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.Set(8, "AA1122334455", "BT", "Default");
+    Ds4ProbeScan scan = Ds4ReadOnlyProbeLogic.Scan("AA:11:22:33:44:55",
+        EdgeTransport.Bluetooth, host.Query, host.IsStable);
+    Check(scan.IsMatched && scan.Controller!.Slot == 8 && scan.Controller.Profile == "Default");
+    Check(host.Calls.All(c => c.Property is "MacAddress" or "ConnType" or "ProfileName"));
+    Check(host.Calls.All(c => c.Slot >= 1 && c.Slot <= 8));
+});
+Test("Fake DS4 host rejects a duplicate identity in slot eight", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.Set(1, "AA1122334455", "BT", "Default");
+    host.Set(8, "AA1122334455", "BT", "Default");
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.DuplicateIdentity);
+});
+Test("Fake DS4 host rejects mismatched transport and absent identity", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.Set(4, "AA1122334455", "USB", "Default");
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.TransportMismatch);
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334456", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.Inconclusive);
+    int calls = host.Calls.Count;
+    Check(Ds4ReadOnlyProbeLogic.Scan(null, EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.IdentityUnavailable);
+    Check(host.Calls.Count == calls);
+});
+Test("Fake DS4 host rejects malformed IPC answers", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.OnQuery = (slot, prop, _) => prop == "MacAddress" && slot == 1 ? "not-an-address" : "";
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.MalformedResponse);
+    host.OnQuery = (_, prop, _) => prop == "MacAddress" ? new string('A', 256) : "";
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.MalformedResponse);
+    host.OnQuery = (_, prop, _) => prop == "MacAddress" ? "AA11\n22334455" : "";
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.MalformedResponse);
+});
+Test("Fake DS4 host fails closed on IPC timeout and exception", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.Error = new TimeoutException("Fake timeout");
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.QueryFailed);
+    host.Error = new IOException("Fake broken shared memory");
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.QueryFailed);
+});
+Test("Fake DS4 host detects process restart midway through query", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.Set(1, "AA1122334455", "BT", "Default");
+    host.AfterQuery = count => { if (count == 2) host.Stable = false; };
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.HostChanged);
+    Check(!host.Calls.Any(c => c.Property == "ProfileName"));
+});
+Test("Fake DS4 host rejects slot and profile changes during read", () =>
+{
+    var host = new FakeDs4QueryHost();
+    host.Set(1, "AA1122334455", "BT", "Default");
+    host.OnQuery = (slot, prop, count) =>
+        slot == 1 && prop == "MacAddress" && count > 8 ? "AA1122334456" : host.Value(slot, prop);
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.ChangedDuringProbe);
+    host = new FakeDs4QueryHost();
+    host.Set(1, "AA1122334455", "BT", "Default");
+    host.OnQuery = (slot, prop, count) =>
+        slot == 1 && prop == "ProfileName" && count > 8 ? "Second profile" : host.Value(slot, prop);
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.ChangedDuringProbe);
+});
+Test("Fake DS4 host prevents stale process claim before any query", () =>
+{
+    var host = new FakeDs4QueryHost { Stable = false };
+    host.Set(1, "AA1122334455", "BT", "Default");
+    Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+        host.Query, host.IsStable).Code == Ds4ProbeCode.HostChanged);
+    Check(host.Calls.Count == 0);
+});
+Test("Concurrent simulated lease acquisition remains exclusive", () =>
+{
+    var host = new SimulatedLightingLeaseHost("AA1122334455",
+        new SimulatedLightbarSink(), TimeProvider.System, TimeSpan.FromMinutes(1));
+    host.Connect("AA1122334455", "Default", new(5, 5, 5));
+    var acquired = new System.Collections.Concurrent.ConcurrentBag<Guid>();
+    Parallel.For(0, 64, _ =>
+    {
+        Guid? token = host.Acquire("AA1122334455", host.ConnectionGeneration);
+        if (token is Guid granted) acquired.Add(granted);
+    });
+    Check(acquired.Count == 1);
+    Check(host.Release(acquired.Single()));
+    Check(!host.HasLease);
+});
 Test("Lightbar RGB input parsing", () =>
 {
     Check(LightbarColor.TryParse("#12aBcF", out var color));
@@ -126,11 +409,11 @@ Test("Bluetooth setup report uses LED initialization only", () =>
 {
     byte[] report = DualSenseLightbarReport.BuildBluetoothSetup(2);
     Check(report.Length == 78 && report[0] == 0x31 && report[1] == 0x20 && report[2] == 0x10);
-    Check(report[41] == 0x02 && report[44] == 0x01);
+    Check(report[41] == 0x02 && report[44] == 0x02);
     uint crc = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(report.AsSpan(74));
     Check(crc == DualSenseLightbarReport.CalculateOutputCrc(report.AsSpan(0, 74)));
     byte[] usb = DualSenseLightbarReport.BuildUsbSetup();
-    Check(usb[0] == 0x02 && usb[39] == 0x02 && usb[42] == 0x01);
+    Check(usb[0] == 0x02 && usb[39] == 0x02 && usb[42] == 0x02);
     Check(usb[2] == 0 && report[4] == 0);
 });
 Test("DS4Windows disconnect targeting is controller-specific", () =>
@@ -491,6 +774,8 @@ Test("Unreadable cached names do not fabricate a profile", () =>
     }
     finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
 });
+passed += SettingsStoreTests.Run();
+passed += DiagnosticsReportTests.Run();
 Console.WriteLine($"Passed {passed} protocol tests.");
 
 void Test(string name, Action action)
@@ -552,4 +837,46 @@ static byte[] FullBluetoothReport()
     report[76] = 0xEF;
     report[77] = 0x03;
     return report;
+}
+
+sealed class TestClock : TimeProvider
+{
+    private long now;
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+    public override long GetTimestamp() => now;
+    public void Advance(TimeSpan delta) => now += delta.Ticks;
+}
+
+
+
+sealed class FakeDs4QueryHost
+{
+    private readonly Dictionary<(int Slot, string Property), string> values = new();
+    public readonly List<(int Slot, string Property)> Calls = new();
+    public bool Stable { get; set; } = true;
+    public Exception? Error { get; set; }
+    public Action<int>? AfterQuery { get; set; }
+    public Func<int, string, int, string?>? OnQuery { get; set; }
+    public bool IsStable() => Stable;
+
+    public void Set(int slot, string address, string transport, string profile)
+    {
+        values[(slot, "MacAddress")] = address;
+        values[(slot, "ConnType")] = transport;
+        values[(slot, "ProfileName")] = profile;
+    }
+
+    public string Value(int slot, string property) =>
+        values.TryGetValue((slot, property), out string? value) ? value : "";
+
+    public string? Query(int slot, string property)
+    {
+        if (property is not ("MacAddress" or "ConnType" or "ProfileName"))
+            throw new InvalidOperationException("Fake host forbids non-Query operations");
+        Calls.Add((slot, property));
+        if (Error is not null) throw Error;
+        string? value = OnQuery is null ? Value(slot, property) : OnQuery(slot, property, Calls.Count);
+        AfterQuery?.Invoke(Calls.Count);
+        return value;
+    }
 }

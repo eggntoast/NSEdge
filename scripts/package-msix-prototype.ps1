@@ -7,16 +7,19 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 [xml]$project = Get-Content (Join-Path $root 'src/NSEdge.App/NSEdge.App.csproj') -Raw
 $version = [string]$project.Project.PropertyGroup.Version
-if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid version: $version" }
-$msixVersion = "$version.0"
+if ($version -notmatch '^\d+\.\d+$') { throw "Invalid version: $version" }
+$msixVersion = "$version.0.0"
 
-$layout = Join-Path $OutputDirectory 'layout'
+# Each invocation stages only this publish output; a reused directory could retain
+# assemblies removed since an earlier build. Keep previous layouts for inspection.
+$layout = Join-Path $OutputDirectory ('layout-' + [Guid]::NewGuid().ToString('N'))
 $assets = Join-Path $layout 'Assets'
 New-Item -ItemType Directory -Force $layout, $assets | Out-Null
 Copy-Item -Path (Join-Path $PublishPath '*') -Destination $layout -Recurse -Force
 Get-ChildItem $layout -Filter '*.pdb' | Remove-Item
 $exe = Join-Path $layout 'NSEdge.exe'
 if (-not (Test-Path $exe)) { throw 'Published NSEdge.exe not found' }
+if (-not (Test-Path (Join-Path $layout 'LICENSE'))) { throw 'Published license not found' }
 
 # Partner Center supplies the production package identity.
 $manifest = @'

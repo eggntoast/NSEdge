@@ -7,13 +7,13 @@ namespace NSEdge.App.Services;
 
 internal static class UiPreview
 {
-    public static void Save(FrameworkElement visual, string path)
+    public static void Save(FrameworkElement visual, string path, int minWidth = 250, int minHeight = 180)
     {
         visual.UpdateLayout();
         DpiScale dpi = VisualTreeHelper.GetDpi(visual);
         int width = (int)Math.Ceiling(visual.ActualWidth * dpi.DpiScaleX);
         int height = (int)Math.Ceiling(visual.ActualHeight * dpi.DpiScaleY);
-        if (width < 250 || height < 180)
+        if (width < minWidth || height < minHeight)
             throw new InvalidOperationException("UI preview has invalid dimensions.");
 
         var bitmap = new RenderTargetBitmap(width, height,
