@@ -5,7 +5,7 @@ using NSEdge.Core;
 
 namespace NSEdge.Windows.Hid;
 
-// Names are stored only after a USB feature-report read, and matched by
+// Names are stored after successful Sony feature-report reads, and matched by
 // the same real controller identity on Bluetooth. No path-based fallback.
 internal sealed class ProfileNameCache
 {
@@ -63,6 +63,7 @@ internal sealed class ProfileNameCache
         string? path = PathFor(identity);
         if (path is null || (names.Circle is null && names.Cross is null && names.Square is null))
             return;
+        names = Read(identity).MergeRead(names);
         string temp = path + ".tmp";
         File.WriteAllText(temp, JsonSerializer.Serialize(names));
         File.Move(temp, path, overwrite: true);

@@ -73,6 +73,14 @@ public sealed record ProfileNames(string? Circle, string? Cross, string? Square)
 {
     public static readonly ProfileNames Empty = new(null, null, null);
 
+    // A null slot was not read; an empty slot was read and is explicitly unassigned.
+    public ProfileNames MergeRead(ProfileNames read) => new(
+        read.Circle ?? Circle, read.Cross ?? Cross, read.Square ?? Square);
+
+    // On an unavailable feature-report read, a saved cache is only a fallback.
+    // Keep any newer names already observed in this controller session.
+    public ProfileNames FillMissingFrom(ProfileNames cached) => cached.MergeRead(this);
+
     public string DisplayName(EdgeProfile profile) => profile switch
     {
         EdgeProfile.Default => "Default",
