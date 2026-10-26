@@ -23,7 +23,7 @@ internal sealed class DiagnosticsWindow : Window
         ResizeMode = ResizeMode.CanResize;
         Background = Brush("#0E1624");
         Foreground = Brush("#E8EEF8");
-        FontFamily = new FontFamily("Segoe UI");
+        FontFamily = new System.Windows.Media.FontFamily("Segoe UI");
         ShowInTaskbar = false;
 
         var layout = new Grid { Margin = new Thickness(20) };
@@ -53,7 +53,7 @@ internal sealed class DiagnosticsWindow : Window
         Grid.SetRow(notice, 1);
         layout.Children.Add(notice);
 
-        var content = new TextBox
+        var content = new System.Windows.Controls.TextBox
         {
             Text = diagnostics,
             IsReadOnly = true,
@@ -67,7 +67,7 @@ internal sealed class DiagnosticsWindow : Window
             BorderBrush = Brush("#33445B"),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(12),
-            FontFamily = new FontFamily("Consolas"),
+            FontFamily = new System.Windows.Media.FontFamily("Consolas"),
             FontSize = 12,
             IsTabStop = false
         };
@@ -76,8 +76,8 @@ internal sealed class DiagnosticsWindow : Window
 
         var actions = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
             Margin = new Thickness(0, 15, 0, 0)
         };
 
@@ -87,12 +87,12 @@ internal sealed class DiagnosticsWindow : Window
         {
             try
             {
-                Clipboard.SetText(content.Text);
+                System.Windows.Clipboard.SetText(content.Text);
             }
             catch (System.Runtime.InteropServices.ExternalException)
             {
-                MessageBox.Show(this, "The clipboard is currently unavailable.",
-                    "NSEdge", MessageBoxButton.OK, MessageBoxImage.Warning);
+                System.Windows.MessageBox.Show(this, "The clipboard is currently unavailable.",
+                    "NSEdge", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
             }
         };
         actions.Children.Add(copy);
@@ -123,7 +123,7 @@ internal sealed class DiagnosticsWindow : Window
 
     private static SolidColorBrush Brush(string hex)
     {
-        var value = (Color)ColorConverter.ConvertFromString(hex);
+        var value = (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex);
         var brush = new SolidColorBrush(value);
         brush.Freeze();
         return brush;
