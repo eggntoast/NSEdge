@@ -2,6 +2,64 @@ using NSEdge.Core;
 using NSEdge.Windows.Hid;
 
 int passed = 0;
+Test("Async diagnostics rejects changed or unidentified controller sessions", () =>
+{
+    var captured = EdgeStatus.Disconnected with
+    {
+        Connected = true, ControllerIdentity = "AA1122334455", DevicePath = "test-device",
+        ConnectionGeneration = 1, Transport = EdgeTransport.Bluetooth
+    };
+    Check(captured.IsSameConnectionAs(captured with { ReportCount = 50 }));
+    Check(!captured.IsSameConnectionAs(captured with { ConnectionGeneration = 2 }));
+    Check(!captured.IsSameConnectionAs(captured with { ControllerIdentity = "AA1122334456" }));
+    Check(!captured.IsSameConnectionAs(captured with { Transport = EdgeTransport.Usb }));
+    Check(!captured.IsSameConnectionAs(captured with { DevicePath = "another-device" }));
+    Check(!captured.IsSameConnectionAs(captured with { Connected = false }));
+    Check(!captured.IsSameConnectionAs(captured with { ControllerIdentity = null }));
+    Check(!EdgeStatus.Disconnected.IsSameConnectionAs(EdgeStatus.Disconnected));
+});
+Test("Diagnostic heartbeat is bounded and uses monotonic time", () =>
+{
+    var clock = new TestClock();
+    var heartbeat = new StatusHeartbeat(clock);
+    for (int i = 0; i < 999; i++)
+    {
+        clock.Advance(TimeSpan.FromMilliseconds(1));
+        Check(!heartbeat.IsDue);
+    }
+    clock.Advance(TimeSpan.FromMilliseconds(1));
+    Check(heartbeat.IsDue);
+    heartbeat.Published();
+    Check(!heartbeat.IsDue);
+    clock.Advance(TimeSpan.FromSeconds(30));
+    Check(heartbeat.IsDue);
+    heartbeat.Published();
+    Check(!heartbeat.IsDue);
+});
+Test("Partial Sony reads preserve names while explicit unassignment clears them", () =>
+{
+    string folder = Path.Combine(Path.GetTempPath(), "NSEdge-partial-names-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        var cache = new ProfileNameCache(folder);
+        var original = new ProfileNames("Circle saved", "Cross saved", "Square saved");
+        cache.Save("AA1122334455", original);
+        var partial = new ProfileNames("Circle updated", null, "");
+        var expected = new ProfileNames("Circle updated", "Cross saved", "");
+        Check(original.MergeRead(partial) == expected);
+        cache.Save("AA1122334455", partial);
+        Check(cache.Read("AA1122334455") == expected);
+        cache.Save("AA1122334455", ProfileNames.Empty);
+        Check(cache.Read("AA1122334455") == expected);
+        var cleared = new ProfileNames("", "", "");
+        cache.Save("AA1122334455", cleared);
+        Check(cache.Read("AA1122334455") == cleared);
+        cache.Save("AA1122334456", partial);
+        Check(cache.Read("AA1122334456") == partial);
+        Check(cache.Read("AA1122334455") == cleared);
+    }
+    finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+});
 Test("Read-only DS4 selection requires exact identity and transport", () =>
 {
     var rows = new[] { new Ds4ControllerObservation(1, "AA:11:22:33:44:55", "BT", "Default") };
@@ -119,7 +177,7 @@ Test("Fake DS4 host rejects mismatched transport and absent identity", () =>
     Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
         host.Query, host.IsStable).Code == Ds4ProbeCode.TransportMismatch);
     Check(Ds4ReadOnlyProbeLogic.Scan("AA1122334456", EdgeTransport.Bluetooth,
-        host.Query, host.IsStable).Code == Ds4ProbeCode.ControllerNotFound);
+        host.Query, host.IsStable).Code == Ds4ProbeCode.Inconclusive);
     int calls = host.Calls.Count;
     Check(Ds4ReadOnlyProbeLogic.Scan(null, EdgeTransport.Bluetooth,
         host.Query, host.IsStable).Code == Ds4ProbeCode.IdentityUnavailable);
@@ -319,11 +377,11 @@ Test("Bluetooth setup report uses LED initialization only", () =>
 {
     byte[] report = DualSenseLightbarReport.BuildBluetoothSetup(2);
     Check(report.Length == 78 && report[0] == 0x31 && report[1] == 0x20 && report[2] == 0x10);
-    Check(report[41] == 0x02 && report[44] == 0x01);
+    Check(report[41] == 0x02 && report[44] == 0x02);
     uint crc = System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(report.AsSpan(74));
     Check(crc == DualSenseLightbarReport.CalculateOutputCrc(report.AsSpan(0, 74)));
     byte[] usb = DualSenseLightbarReport.BuildUsbSetup();
-    Check(usb[0] == 0x02 && usb[39] == 0x02 && usb[42] == 0x01);
+    Check(usb[0] == 0x02 && usb[39] == 0x02 && usb[42] == 0x02);
     Check(usb[2] == 0 && report[4] == 0);
 });
 Test("DS4Windows disconnect targeting is controller-specific", () =>
@@ -684,6 +742,7 @@ Test("Unreadable cached names do not fabricate a profile", () =>
     }
     finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
 });
+passed += SettingsStoreTests.Run();
 Console.WriteLine($"Passed {passed} protocol tests.");
 
 void Test(string name, Action action)

@@ -52,7 +52,8 @@ public static class DualSenseLightbarReport
     private static void PutSetup(byte[] report, int start)
     {
         report[start + 38] = 0x02; // Enable LED setup only.
-        report[start + 41] = 0x01; // Fade startup animation out before RGB commands.
+        // Linux hid-playstation.c DS_OUTPUT_LIGHTBAR_SETUP_LIGHT_OUT is BIT(1).
+        report[start + 41] = 0x02; // Fade startup animation out before RGB commands.
     }
 
     private static void PutColor(byte[] report, int start, LightbarColor color)

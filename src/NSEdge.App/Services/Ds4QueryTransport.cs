@@ -99,6 +99,9 @@ internal static class Ds4QueryTransport
 
             byte[] response = new byte[ResultSize];
             view.ReadArray(0, response, 0, response.Length);
+            // Stock DS4Windows signals even if writing fails, and writes no bytes for
+            // a legitimate empty value. An empty result is therefore ambiguous; the
+            // scan must not turn it into proof of absence or a complete match.
             int terminator = Array.IndexOf(response, (byte)0);
             if (terminator < 0) throw new InvalidDataException("Unterminated DS4Windows IPC response.");
             // Do not silently replace non-ASCII bytes with '?' and mistake them for valid data.

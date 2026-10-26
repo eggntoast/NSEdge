@@ -78,6 +78,9 @@ jobs:
             if (-not ($entries | Where-Object { $_.FullName -eq 'NSEdge/NSEdge.exe' })) {
               throw 'NSEdge/NSEdge.exe missing from ZIP'
             }
+            if (-not ($entries | Where-Object { $_.FullName -eq 'NSEdge/LICENSE' })) {
+              throw 'License missing from ZIP'
+            }
             if ($entries | Where-Object { $_.FullName -notlike 'NSEdge/*' }) {
               throw 'Incorrect ZIP root'
             }
@@ -93,7 +96,7 @@ jobs:
             (Resolve-Path $zip).Path, (Resolve-Path artifacts/unpacked).Path)
           $exe = (Resolve-Path artifacts/unpacked/NSEdge/NSEdge.exe).Path
           $version = (Get-Item $exe).VersionInfo.ProductVersion
-          if ($version -notlike "$env:NSEDGE_VERSION*") {
+          if (($version -split '\+', 2)[0] -cne $env:NSEDGE_VERSION) {
             throw "Executable version mismatch: $version"
           }
           $p = Start-Process -FilePath $exe -ArgumentList '--smoke-test' -PassThru

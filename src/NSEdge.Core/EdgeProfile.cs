@@ -73,6 +73,10 @@ public sealed record ProfileNames(string? Circle, string? Cross, string? Square)
 {
     public static readonly ProfileNames Empty = new(null, null, null);
 
+    // A null slot was not read; an empty slot was read and is explicitly unassigned.
+    public ProfileNames MergeRead(ProfileNames read) => new(
+        read.Circle ?? Circle, read.Cross ?? Cross, read.Square ?? Square);
+
     public string DisplayName(EdgeProfile profile) => profile switch
     {
         EdgeProfile.Default => "Default",

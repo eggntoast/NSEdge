@@ -26,6 +26,9 @@ internal static class Program
             Test("Host shutdown during IPC response fails closed", HostShutdown);
             Test("Hung fake IPC window respects send timeout", HungWindow);
             Test("Overall discovery budget prevents repeated long waits", OverallBudget);
+            Test("Malformed unrelated address does not hide slot eight", MalformedUnrelatedSlot);
+            Test("Empty stock replies cannot prove absence or complete matching", EmptyResponses);
+            Test("Successful slow queries share the overall deadline", AccumulatingBudget);
             Console.WriteLine($"Passed {passed} Windows IPC integration tests.");
             return 0;
         }
@@ -216,6 +219,68 @@ internal static class Program
     }
 
     private static byte[] Bytes(string value) => Encoding.ASCII.GetBytes(value + "\0");
+
+    private static Ds4ProbeScan Scan(FakeQueryHost host) =>
+        Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+            (slot, property) => Ds4QueryTransport.Query(host.Handle, slot, property,
+                host.Names, TimeSpan.FromSeconds(2), host.IsAlive), host.IsAlive);
+
+    private static void MalformedUnrelatedSlot()
+    {
+        using var host = new FakeQueryHost();
+        host.Respond = command => Bytes(command switch
+        {
+            "Query.1.MacAddress" => "unavailable",
+            "Query.8.MacAddress" => "AA1122334455",
+            "Query.8.ConnType" => "BT",
+            "Query.8.ProfileName" => "Default",
+            _ => ""
+        });
+        var scan = Scan(host);
+        Require(scan.IsMatched && scan.Controller!.Slot == 8);
+        Require(scan.MalformedAddressSlots == 1 && scan.EmptyAddressSlots == 6);
+    }
+
+    private static void EmptyResponses()
+    {
+        using var host = new FakeQueryHost();
+        // Zero-byte write plus event is exactly the stock empty response shape.
+        host.Respond = _ => Array.Empty<byte>();
+        var absent = Scan(host);
+        Require(absent.Code == Ds4ProbeCode.Inconclusive && absent.EmptyAddressSlots == 8);
+        foreach (string missing in new[] { "ConnType", "ProfileName" })
+        {
+            host.Respond = command => command == "Query.1." + missing ? Array.Empty<byte>() :
+                Bytes(command switch
+                {
+                    "Query.1.MacAddress" => "AA1122334455",
+                    "Query.1.ConnType" => "BT",
+                    "Query.1.ProfileName" => "Default",
+                    _ => ""
+                });
+            Require(Scan(host).Code == Ds4ProbeCode.IncompleteResponse);
+        }
+    }
+
+    private static void AccumulatingBudget()
+    {
+        using var host = new FakeQueryHost();
+        int replies = 0;
+        host.Respond = _ =>
+        {
+            // Allow two completed round trips, then stop replying. No delayed writer
+            // touches a disposed map after the client has exhausted its budget.
+            if (Interlocked.Increment(ref replies) > 2) return null;
+            Thread.Sleep(100);
+            return Bytes("");
+        };
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        var scan = Ds4ReadOnlyProbeLogic.Scan("AA1122334455", EdgeTransport.Bluetooth,
+            (slot, property) => Ds4QueryTransport.Query(host.Handle, slot, property, host.Names,
+                TimeSpan.FromMilliseconds(600) - elapsed.Elapsed, host.IsAlive), host.IsAlive);
+        Require(scan.Code == Ds4ProbeCode.QueryFailed && scan.EmptyAddressSlots == 2);
+        Require(replies == 3 && elapsed.Elapsed < TimeSpan.FromSeconds(2));
+    }
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint GetWindowThreadProcessId(nint hwnd, out uint pid);

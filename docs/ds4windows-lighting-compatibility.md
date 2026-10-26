@@ -1,6 +1,6 @@
 # Optional DS4Windows lighting integration — engineering contract
 
-Status: design and simulation only. No DS4Windows changes, no physical HID output, no changeledcolor commands, and no new controller permissions. Source-only groundwork for NSEdge v0.3.
+Status: implemented read-only diagnostics; lighting ownership remains design and simulation only. No DS4Windows changes, physical HID output or changeledcolor commands are part of this integration.
 
 ## Current baseline
 
@@ -12,6 +12,14 @@ The read-only compatibility probe:
 - matches NSEdge's normalized physical controller identity and transport, rejects duplicate addresses, and rechecks the selected slot and host process;
 - identifies the DS4Windows **software profile**, not the Sony onboard profile;
 - is advisory and never grants permission for physical output.
+
+Malformed addresses on unrelated slots are counted and skipped so they cannot
+hide a valid controller later in the scan. Empty stock responses are ambiguous:
+DS4Windows can signal completion after a failed map write, and legitimate empty
+values write no bytes. The probe therefore reports an inconclusive absence when
+empty address replies occur and refuses a complete match with empty transport or
+software-profile data. A reported match is an observation, not an atomic snapshot
+or proof that all other slots were successfully read.
 
 The probe creates temporary Windows IPC query objects. It does not mutate controller settings. A query failure or timeout is reported and never treated as authorization.
 
@@ -34,7 +42,11 @@ Suggested initial lease lifetime is five seconds and client renewal every two se
 
 ## What the simulation proves (and does not)
 
-SimulatedLightingLeaseHost and SimulatedLightbarSink are pure in-memory types. They have no DS4Windows IPC, HID, file, process or physical-output functionality. The host relies on an explicit Expire() call; it does not run a Windows timer or handle a real crash.
+SimulatedLightingLeaseHost and SimulatedLightbarSink are test-only in-memory types
+under `tests/NSEdge.Tests`; they are not shipped in NSEdge.Core. They have no
+DS4Windows IPC, HID, file, process or physical-output functionality. The host
+relies on an explicit Expire() call; it does not run a Windows timer or handle a
+real crash.
 
 Regression tests cover exclusive ownership, invalid identity and transport matching, wrong tokens, expiry, renewal, latest-profile restoration, disconnect/reconnect generation checks and stale-token rejection.
 
@@ -63,19 +75,20 @@ that output control is available. A native window's owning PID can be read
 through GetWindowThreadProcessId, but this does not constitute process
 authentication, nor does a DLL checksum guarantee an unmodified loaded image.
 
-The existing, manually confirmed Bluetooth disconnect feature deliberately
+The existing Bluetooth disconnect request, which requires user confirmation,
 retains its previous IPC transport until that **state-changing** path has its
 own hardware acceptance tests. The new transport is used only for read-only
 queries.
 
-A future integration must also verify the stock IPC class-name discovery map
-against the user's installed 3.3.3 process. The fake test uses an injected
+The owner observed successful read-only discovery and Bluetooth identity matching
+against installed Ryochan7 3.3.3 on 2026-10-26. That dated acceptance does not prove
+lighting or physical disconnect. The fake test uses an injected
 window handle rather than impersonating an installed DS4Windows executable.
 It cannot prove actual real-process compatibility.
 
 ## Future physical acceptance gate (separate authorization)
 
-1. Verify the read-only process/identity/profile probe against installed 3.3.3. Capture recognized fingerprint, PID, matching slot, transport and software profile; no lighting commands.
+1. Recheck read-only identity/transport matching for the controller session used in the output experiment; the owner's earlier read-only acceptance is not output authorization or LED evidence.
 2. Prototype a separately licensed compatible DS4Windows build against a fake physical-output sink without changing the installed version.
 3. With explicit authorization, test one static RGB value in a controlled environment; observe physical LEDs and preserve all mappings, gyro, rumble and virtual-controller outputs.
 4. Release the lease and verify DS4Windows' current active profile colour returns, including after a profile switch.

@@ -8,5 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/NSEdge.Core/NSEdge.Core.csproj" />
     <ProjectReference Include="../../src/NSEdge.Windows/NSEdge.Windows.csproj" />
+    <Compile Include="../../src/NSEdge.App/Services/AppSettings.cs" Link="AppSettings.cs" />
+    <Compile Include="../../src/NSEdge.App/Services/Log.cs" Link="Log.cs" />
   </ItemGroup>
 </Project>

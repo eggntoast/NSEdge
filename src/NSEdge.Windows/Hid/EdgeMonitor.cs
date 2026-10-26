@@ -17,6 +17,15 @@ public sealed record EdgeStatus(bool Connected, EdgeProfile Profile, ProfileName
     public long MinimalReports { get; init; }
     public long BadCrcReports { get; init; }
     public DateTimeOffset? LastInputUtc { get; init; }
+    // Session identity is published atomically with the status; never include these in public logs.
+    public string? ControllerIdentity { get; init; }
+    public string? DevicePath { get; init; }
+    public long ConnectionGeneration { get; init; }
+    public bool IsSameConnectionAs(EdgeStatus other) => Connected && other.Connected &&
+        ConnectionGeneration > 0 && ConnectionGeneration == other.ConnectionGeneration &&
+        ControllerIdentity is not null && ControllerIdentity == other.ControllerIdentity &&
+        Transport is not null && Transport == other.Transport &&
+        DevicePath is not null && DevicePath == other.DevicePath;
     public static readonly EdgeStatus Disconnected = new(false, EdgeProfile.Unknown, ProfileNames.Empty, 0, "Waiting for controller", EdgeBattery.Unavailable);
 }
 
@@ -28,10 +37,9 @@ public sealed class EdgeMonitor : IAsyncDisposable
     private EdgeStatus current = EdgeStatus.Disconnected;
     private long lastReportTicks;
     private ProfileNameCache? nameCache;
-    private string? controllerIdentity;
-    private string? activeDevicePath;
-    public string? CurrentControllerIdentity => Volatile.Read(ref controllerIdentity);
-    public string? CurrentDevicePath => Volatile.Read(ref activeDevicePath);
+    private long connectionGeneration;
+    public string? CurrentControllerIdentity => Current.ControllerIdentity;
+    public string? CurrentDevicePath => Current.DevicePath;
 
     public event Action<EdgeStatus>? Updated;
     public event Action<EdgeBattery>? PsPressed;
@@ -111,7 +119,7 @@ public sealed class EdgeMonitor : IAsyncDisposable
         Interlocked.Exchange(ref lastReportTicks, 0);
 
         bool bluetooth = transport == EdgeTransport.Bluetooth;
-        Volatile.Write(ref activeDevicePath, device.Path);
+        long generation = Interlocked.Increment(ref connectionGeneration);
         var usbIdentity = bluetooth ? (Identity: (string?)null, Status: "")
             : NativeMethods.ReadUsbIdentity(handle);
         string? controllerId = bluetooth
@@ -120,7 +128,6 @@ public sealed class EdgeMonitor : IAsyncDisposable
         string identityStatus = bluetooth
             ? controllerId is null ? "Bluetooth serial unavailable" : "Bluetooth serial available"
             : usbIdentity.Status;
-        Volatile.Write(ref controllerIdentity, controllerId);
         string bluetoothNameStatus = bluetooth ? "Not queried (use Refresh names)" : "Not applicable";
         ProfileNames names = bluetooth ? ProfileNames.Empty : ReadNames(handle);
         bool cachedNames = false;
@@ -134,7 +141,12 @@ public sealed class EdgeMonitor : IAsyncDisposable
                 cachedNames = names != ProfileNames.Empty;
             }
             else
-                nameCache.Save(controllerId, names);
+            {
+                ProfileNames readNames = names;
+                names = nameCache.Read(controllerId).MergeRead(readNames);
+                cachedNames = names != readNames;
+                nameCache.Save(controllerId, readNames);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -155,11 +167,15 @@ public sealed class EdgeMonitor : IAsyncDisposable
         bool awaitingExtended = bluetooth;
         string detail = bluetooth ? "Bluetooth connected; waiting for extended input reports"
                                   : "USB connected";
+        var heartbeat = new StatusHeartbeat(TimeProvider.System);
 
         EdgeStatus Snapshot(string reason) => new(true, debounce.Current,
             names, reports, reason, battery)
         {
             Transport = transport,
+            ControllerIdentity = controllerId,
+            DevicePath = device.Path,
+            ConnectionGeneration = generation,
             BatteryStatusRaw = batteryStatusRaw,
             BluetoothProfileCandidate = profileCandidate,
             UsbProfileCandidate = usbProfileCandidate,
@@ -173,7 +189,13 @@ public sealed class EdgeMonitor : IAsyncDisposable
             LastInputUtc = lastInput
         };
 
-        Publish(Snapshot(detail));
+        void PublishSnapshot(string reason)
+        {
+            Publish(Snapshot(reason));
+            heartbeat.Published();
+        }
+
+        PublishSnapshot(detail);
 
         try
         {
@@ -185,13 +207,10 @@ public sealed class EdgeMonitor : IAsyncDisposable
                     {
                         // Manual read-only probe: the Edge's USB name reports may not be exposed over Bluetooth.
                         ProfileNames directNames = ReadNames(handle);
-                        if (directNames != ProfileNames.Empty &&
-                            (!string.IsNullOrWhiteSpace(directNames.Circle) ||
-                             !string.IsNullOrWhiteSpace(directNames.Cross) ||
-                             !string.IsNullOrWhiteSpace(directNames.Square)))
+                        if (directNames != ProfileNames.Empty)
                         {
-                            names = directNames;
-                            cachedNames = false;
+                            names = names.MergeRead(directNames);
+                            cachedNames = cachedNames && names != directNames;
                             bluetoothNameStatus = "Sony name feature reports responded";
                             try { nameCache?.Save(controllerId, names); }
                             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
@@ -213,12 +232,14 @@ public sealed class EdgeMonitor : IAsyncDisposable
                     }
                     else
                     {
-                        names = ReadNames(handle);
-                        try { nameCache?.Save(controllerId, names); }
+                        ProfileNames directNames = ReadNames(handle);
+                        names = names.MergeRead(directNames);
+                        cachedNames = cachedNames && names != directNames;
+                        try { nameCache?.Save(controllerId, directNames); }
                         catch (IOException) { }
                         catch (UnauthorizedAccessException) { }
                     }
-                    Publish(Snapshot(bluetooth ? bluetoothNameStatus : "Names refreshed"));
+                    PublishSnapshot(bluetooth ? bluetoothNameStatus : "Names refreshed");
                 }
 
                 int read = await stream.ReadAsync(buffer.AsMemory(), token).ConfigureAwait(false);
@@ -239,8 +260,9 @@ public sealed class EdgeMonitor : IAsyncDisposable
                         if (awaitingExtended && detail != "Bluetooth minimal input only; extended reports not enabled")
                         {
                             detail = "Bluetooth minimal input only; extended reports not enabled";
-                            Publish(Snapshot(detail));
+                            PublishSnapshot(detail);
                         }
+                        else if (heartbeat.IsDue) PublishSnapshot(detail);
                         continue;
                     }
                     if (kind != BluetoothReportKind.Extended)
@@ -251,9 +273,10 @@ public sealed class EdgeMonitor : IAsyncDisposable
                             if (detail != "Bluetooth extended report rejected: invalid CRC")
                             {
                                 detail = "Bluetooth extended report rejected: invalid CRC";
-                                Publish(Snapshot(detail));
+                                PublishSnapshot(detail);
                             }
                         }
+                        if (heartbeat.IsDue) PublishSnapshot(detail);
                         continue;
                     }
 
@@ -291,16 +314,16 @@ public sealed class EdgeMonitor : IAsyncDisposable
                 if (psButton.Observe(psDown, DateTimeOffset.UtcNow))
                     PsPressed?.Invoke(battery);
 
-                if (profileChanged || batteryChanged || btCandidateChanged || usbCandidateChanged || reports == 1)
-                    Publish(Snapshot(detail));
+                if (profileChanged || batteryChanged || btCandidateChanged || usbCandidateChanged || reports == 1 ||
+                    heartbeat.IsDue || Current.Detail != detail)
+                    PublishSnapshot(detail);
             }
         }
         catch (Exception ex) when (token.IsCancellationRequested &&
             ex is IOException or ObjectDisposedException or OperationCanceledException) { }
         finally
         {
-            Volatile.Write(ref controllerIdentity, null);
-            Volatile.Write(ref activeDevicePath, null);
+            Interlocked.Exchange(ref lastReportTicks, 0);
             Publish(EdgeStatus.Disconnected with { ScanSummary = scanSummary });
         }
     }

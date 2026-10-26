@@ -5,6 +5,8 @@ public enum Ds4ProbeCode
     Matched,
     IdentityUnavailable,
     ControllerNotFound,
+    Inconclusive,
+    IncompleteResponse,
     TransportMismatch,
     DuplicateIdentity,
     HostChanged,
@@ -13,7 +15,8 @@ public enum Ds4ProbeCode
     QueryFailed
 }
 
-public sealed record Ds4ProbeScan(Ds4ProbeCode Code, Ds4ControllerObservation? Controller)
+public sealed record Ds4ProbeScan(Ds4ProbeCode Code, Ds4ControllerObservation? Controller,
+    int EmptyAddressSlots = 0, int MalformedAddressSlots = 0)
 {
     public bool IsMatched => Code == Ds4ProbeCode.Matched && Controller is not null;
 }
@@ -36,6 +39,10 @@ public static class Ds4ReadOnlyProbeLogic
             return new(Ds4ProbeCode.IdentityUnavailable, null);
 
         bool Changed() => !hostIsSame();
+        int emptySlots = 0;
+        int malformedSlots = 0;
+        Ds4ProbeScan Result(Ds4ProbeCode code, Ds4ControllerObservation? controller = null) =>
+            new(code, controller, emptySlots, malformedSlots);
 
         string? Read(int slot, string property)
         {
@@ -53,9 +60,11 @@ public static class Ds4ReadOnlyProbeLogic
             for (int slot = 1; slot <= MaxSlots333; slot++)
             {
                 string? address = Read(slot, "MacAddress");
-                if (string.IsNullOrEmpty(address)) continue;
+                if (string.IsNullOrEmpty(address)) { emptySlots++; continue; }
                 string? normalized = ControllerIdentity.Normalize(address);
-                if (normalized is null) return new(Ds4ProbeCode.MalformedResponse, null);
+                // An unrelated unsupported controller must not hide a valid later slot.
+                // Preserve the incomplete scan evidence; this is advisory discovery only.
+                if (normalized is null) { malformedSlots++; continue; }
                 if (normalized != expected) continue;
                 string? transport = Read(slot, "ConnType");
                 string? profile = Read(slot, "ProfileName");
@@ -64,11 +73,14 @@ public static class Ds4ReadOnlyProbeLogic
 
             Ds4Selection selection = Ds4ReadOnlySelection.Find(expected, expectedTransport, observations);
             if (selection.Status == Ds4SelectionStatus.DuplicateIdentity)
-                return new(Ds4ProbeCode.DuplicateIdentity, null);
+                return Result(Ds4ProbeCode.DuplicateIdentity);
+            if (observations.Any(o => string.IsNullOrEmpty(o.Transport) || string.IsNullOrEmpty(o.Profile)))
+                return Result(Ds4ProbeCode.IncompleteResponse);
             if (selection.Status == Ds4SelectionStatus.TransportMismatch)
-                return new(Ds4ProbeCode.TransportMismatch, null);
+                return Result(Ds4ProbeCode.TransportMismatch);
             if (!selection.IsMatched)
-                return new(Ds4ProbeCode.ControllerNotFound, null);
+                return Result(malformedSlots > 0 ? Ds4ProbeCode.MalformedResponse :
+                    emptySlots > 0 ? Ds4ProbeCode.Inconclusive : Ds4ProbeCode.ControllerNotFound);
 
             Ds4ControllerObservation found = selection.Controller!;
             // Three independent queries may have observed different controller generations.
@@ -76,24 +88,24 @@ public static class Ds4ReadOnlyProbeLogic
             if (ControllerIdentity.Normalize(Read(found.Slot, "MacAddress")) != expected ||
                 !string.Equals(Read(found.Slot, "ConnType"), found.Transport, StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(Read(found.Slot, "ProfileName"), found.Profile, StringComparison.Ordinal))
-                return new(Ds4ProbeCode.ChangedDuringProbe, null);
+                return Result(Ds4ProbeCode.ChangedDuringProbe);
 
             return Changed()
-                ? new(Ds4ProbeCode.HostChanged, null)
-                : new(Ds4ProbeCode.Matched, found);
+                ? Result(Ds4ProbeCode.HostChanged)
+                : Result(Ds4ProbeCode.Matched, found);
         }
         catch (HostChangedException)
         {
-            return new(Ds4ProbeCode.HostChanged, null);
+            return Result(Ds4ProbeCode.HostChanged);
         }
         catch (FormatException)
         {
-            return new(Ds4ProbeCode.MalformedResponse, null);
+            return Result(Ds4ProbeCode.MalformedResponse);
         }
         catch (Exception ex) when (ex is IOException or TimeoutException or
             System.Threading.WaitHandleCannotBeOpenedException or InvalidOperationException)
         {
-            return new(Ds4ProbeCode.QueryFailed, null);
+            return Result(Ds4ProbeCode.QueryFailed);
         }
     }
 

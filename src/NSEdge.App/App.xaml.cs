@@ -28,7 +28,8 @@ public partial class App : System.Windows.Application
     private readonly LowBatteryPolicy batteryPolicy = new();
     private MainWindow? settingsWindow;
     private AppSettings? settings;
-    private readonly SettingsStore store = new();
+    private SettingsStore store = new();
+    private bool diagnosticsRunning;
     private EdgeProfile lastProfile;
     private byte? lastUsbProfileCode;
     private readonly ProfileNotificationTracker profileNotifications = new();
@@ -38,7 +39,15 @@ public partial class App : System.Windows.Application
     private void OnStart(object sender, StartupEventArgs e)
     {
         bool smokeTest = e.Args.Contains("--smoke-test", StringComparer.Ordinal);
-        mutex = new Mutex(initiallyOwned: true, name: @"Local\NSEdge-NS", createdNew: out bool first);
+        if (smokeTest)
+        {
+            string smokeDirectory = Path.Combine(Path.GetTempPath(), "NSEdge-smoke", Guid.NewGuid().ToString("N"));
+            Log.InitializeForSmokeTest(smokeDirectory);
+            store = new SettingsStore(Path.Combine(smokeDirectory, "settings.json"));
+        }
+        mutex = new Mutex(initiallyOwned: true,
+            name: smokeTest ? @"Local\NSEdge-Smoke-" + Guid.NewGuid().ToString("N") : @"Local\NSEdge-NS",
+            createdNew: out bool first);
         if (!first)
         {
             mutex.Dispose();
@@ -50,6 +59,9 @@ public partial class App : System.Windows.Application
         try
         {
             settings = store.Load();
+            if (!smokeTest)
+                store.SaveFailed += message => System.Windows.MessageBox.Show(message,
+                    "NSEdge settings", MessageBoxButton.OK, MessageBoxImage.Warning);
             overlay = new ProfileOverlay();
             batteryOverlay = new BatteryOverlay();
             settingsWindow = new MainWindow(settings, store, ShowCurrent, () => monitor?.RefreshNames(), () => lighting?.Reset(), () => lighting?.Status ?? "Lighting is off");
@@ -296,19 +308,25 @@ public partial class App : System.Windows.Application
 
     private async void ShowDiagnostics()
     {
+        if (diagnosticsRunning || IsExiting) return;
+        diagnosticsRunning = true;
+        try
+        {
         EdgeStatus status = monitor?.Current ?? EdgeStatus.Disconnected;
-        string? identity = monitor?.CurrentControllerIdentity;
+        string? identity = status.ControllerIdentity;
         // Only stock Query messages are sent, on a worker thread so IPC timeouts
         // cannot freeze the tray or settings window.
         Ds4ReadOnlyProbeResult probe = await Task.Run(() =>
             Ds4WindowsIpc.ProbeReadOnly(identity, status.Transport));
         if (IsExiting || Dispatcher.HasShutdownStarted) return;
-        System.Windows.MessageBox.Show(
+        EdgeStatus latest = monitor?.Current ?? EdgeStatus.Disconnected;
+        bool sameConnection = status.IsSameConnectionAs(latest) && monitor?.IsReportFresh == true;
+        string compatibility = sameConnection ? probe.Summary
+            : "Result discarded: controller connection changed or input is stale. Refresh diagnostics.";
+        status = latest;
+        new DiagnosticsWindow(
             $"Connected: {status.Connected}\nTransport: {status.Transport?.ToString() ?? "None"}\nProfile: {status.Profile}\n" +
-            $"Name: {status.Names.DisplayName(status.Profile)}\n" +
-            $"Circle: {status.Names.Circle ?? "(not read)"}\n" +
-            $"Cross: {status.Names.Cross ?? "(not read)"}\n" +
-            $"Square: {status.Names.Square ?? "(not read)"}\n" +
+            $"Saved names available: Circle={status.Names.Circle is not null}, Cross={status.Names.Cross is not null}, Square={status.Names.Square is not null}\n" +
             $"Battery: {status.Battery.Description}\n" +
             $"Battery status byte {(status.Transport == EdgeTransport.Bluetooth ? 54 : 53)}: {(status.BatteryStatusRaw is byte raw ? $"0x{raw:X2}" : "Unavailable")}\n" +
             $"BT profile code (byte 50): {(status.BluetoothProfileCandidate is byte candidate ? $"0x{candidate:X2}" : "Unavailable")}\n" +
@@ -317,12 +335,23 @@ public partial class App : System.Windows.Application
             $"Controller identification: {status.IdentityStatus}\n" +
             $"Bluetooth Sony name reports: {status.BluetoothNameStatus}\n" +
             $"Native lighting: {lighting?.Status ?? "Unavailable"}\n" +
-            $"DS4Windows compatibility (read-only):\n{probe.Summary}\n" +
+            $"DS4Windows compatibility (read-only):\n{compatibility}\n" +
             $"Names from USB cache: {status.NamesFromUsbCache}\n" +
             $"Reports: {status.ReportCount}; BT minimal: {status.MinimalReports}; bad CRC: {status.BadCrcReports}\n" +
             $"Last input (UTC): {status.LastInputUtc?.ToString("O") ?? "None"}\n" +
-            $"Discovery: {status.ScanSummary}\nStatus: {status.Detail}\nLog: {Log.Path}",
-            "NSEdge diagnostics", MessageBoxButton.OK, MessageBoxImage.Information);
+            $"Input fresh: {monitor?.IsReportFresh == true}\n" +
+            $"Discovery: {status.ScanSummary}\nStatus: {status.Detail}\n" +
+            "Controller identities, saved Sony names and local paths are omitted.\n" +
+            "DS4Windows software profile text may contain a personal name; review before sharing.").ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            Log.Write("Diagnostics unavailable: " + ex.GetType().Name);
+            if (!IsExiting && !Dispatcher.HasShutdownStarted)
+                System.Windows.MessageBox.Show("Diagnostics could not complete. Try again.", "NSEdge",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally { diagnosticsRunning = false; }
     }
 
     private async void DisconnectBluetoothController()

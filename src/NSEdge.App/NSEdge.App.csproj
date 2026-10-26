@@ -19,6 +19,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Assets\NSEdge.ico" />
+    <None Include="../../LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <ProjectReference Include="../NSEdge.Core/NSEdge.Core.csproj" />
     <ProjectReference Include="../NSEdge.Windows/NSEdge.Windows.csproj" />
   </ItemGroup>

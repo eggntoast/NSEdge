@@ -108,7 +108,7 @@ internal static class Ds4WindowsIpc
             if (!string.Equals(process.ProcessName, "DS4Windows", StringComparison.OrdinalIgnoreCase))
                 return new("IPC window is not owned by DS4Windows", process.Id, null, null, null, false);
 
-            // Prevent accepting a spoofed or stale window from another application.
+            // Identify the expected compatible executable; this is not process authentication.
             string? executable = process.MainModule?.FileName;
             if (executable is null || !string.Equals(Path.GetFileName(executable), "DS4Windows.exe",
                     StringComparison.OrdinalIgnoreCase))
@@ -149,9 +149,15 @@ internal static class Ds4WindowsIpc
             return scan.IsMatched
                 ? new("Controller matched (read-only; no lighting control)", process.Id,
                     productVersion, scan.Controller!.Slot,
-                    string.IsNullOrWhiteSpace(scan.Controller.Profile) ? "(not reported)" : scan.Controller.Profile, true)
-                : new("Controller not matched: " + scan.Code, process.Id, productVersion,
-                    null, null, true);
+                    scan.Controller.Profile, true, scan.Controller.Transport,
+                    scan.EmptyAddressSlots, scan.MalformedAddressSlots)
+                : new(scan.Code switch
+                    {
+                        Ds4ProbeCode.Inconclusive => "No match observed; empty slots or incomplete stock IPC responses",
+                        Ds4ProbeCode.IncompleteResponse => "Matching identity returned incomplete transport/profile data",
+                        _ => "Controller not matched: " + scan.Code
+                    }, process.Id, productVersion, null, null, true, null,
+                    scan.EmptyAddressSlots, scan.MalformedAddressSlots);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
             InvalidOperationException or ArgumentException or System.ComponentModel.Win32Exception or
@@ -196,7 +202,8 @@ internal static class Ds4WindowsIpc
 
 internal sealed record Ds4ReadOnlyProbeResult(
     string Status, int? ProcessId, string? ProductVersion,
-    int? ControllerSlot, string? SoftwareProfile, bool RecognizedBinary)
+    int? ControllerSlot, string? SoftwareProfile, bool RecognizedBinary,
+    string? ReportedTransport = null, int EmptyAddressSlots = 0, int MalformedAddressSlots = 0)
 {
     public string Summary =>
         $"Status: {Status}\n" +
@@ -204,6 +211,9 @@ internal sealed record Ds4ReadOnlyProbeResult(
         $"Version: {ProductVersion ?? "Unavailable"}\n" +
         $"Recognized 3.3.3 DLL: {RecognizedBinary}\n" +
         $"Matching slot: {(ControllerSlot?.ToString() ?? "None")}\n" +
+        $"DS4Windows reported transport: {ReportedTransport ?? "Unavailable"}\n" +
         $"DS4Windows software profile: {SoftwareProfile ?? "Unavailable"}\n" +
+        $"Empty address replies: {EmptyAddressSlots}; malformed addresses skipped: {MalformedAddressSlots}\n" +
+        "Stock empty replies cannot distinguish vacant slots from failed response writes.\n" +
         "Temporary RGB ownership: not supported by stock DS4Windows 3.3.3";
 }

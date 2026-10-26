@@ -87,6 +87,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
           dotnet run --project tests/NSEdge.Tests -c Release --no-build
           if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+          dotnet run --project tests/NSEdge.IpcTests -c Release --no-build
+          if ($LASTEXITCODE -ne 0) { throw 'Windows IPC tests failed' }
       - name: Publish application
         if: github.event_name == 'workflow_dispatch'
         shell: pwsh
@@ -115,6 +117,7 @@ jobs:
           try {
             $entries = @($archive.Entries | Where-Object { $_.FullName -notmatch '/$' })
             if (-not ($entries | Where-Object { $_.FullName -eq 'NSEdge/NSEdge.exe' })) { throw 'Missing EXE in archive' }
+            if (-not ($entries | Where-Object { $_.FullName -eq 'NSEdge/LICENSE' })) { throw 'Missing license in archive' }
             if ($entries | Where-Object { $_.FullName -notlike 'NSEdge/*' -or $_.FullName -match '\.pdb$' }) {
               throw 'Incorrect ZIP contents'
             }
@@ -123,7 +126,7 @@ jobs:
           New-Item -ItemType Directory -Force artifacts/check | Out-Null
           [System.IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $zip).Path, (Resolve-Path artifacts/check).Path)
           $packedExe = (Resolve-Path artifacts/check/NSEdge/NSEdge.exe).Path
-          if ((Get-Item $packedExe).VersionInfo.ProductVersion -notlike "$env:APP_VERSION*") { throw 'Wrong EXE version' }
+          if (((Get-Item $packedExe).VersionInfo.ProductVersion -split '\+', 2)[0] -cne $env:APP_VERSION) { throw 'Wrong EXE version' }
           $p = Start-Process $packedExe -ArgumentList '--smoke-test' -PassThru
           if (-not $p.WaitForExit(20000)) {
             Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
@@ -158,13 +161,14 @@ jobs:
           try {
             $entries = @($archive.Entries | Where-Object { $_.FullName -notmatch '/$' })
             if (-not ($entries | Where-Object { $_.FullName -eq 'NSEdge/NSEdge.exe' })) { throw 'Missing executable' }
+            if (-not ($entries | Where-Object { $_.FullName -eq 'NSEdge/LICENSE' })) { throw 'Missing license' }
             if ($entries | Where-Object { $_.FullName -notlike 'NSEdge/*' -or $_.FullName -match '\.pdb$' }) { throw 'Unexpected ZIP files' }
           }
           finally { $archive.Dispose() }
           New-Item -ItemType Directory -Force artifacts/check | Out-Null
           [System.IO.Compression.ZipFile]::ExtractToDirectory((Resolve-Path $zip).Path, (Resolve-Path artifacts/check).Path)
           $exe = (Resolve-Path artifacts/check/NSEdge/NSEdge.exe).Path
-          if ((Get-Item $exe).VersionInfo.ProductVersion -notlike "$env:APP_VERSION*") { throw 'Wrong EXE version' }
+          if (((Get-Item $exe).VersionInfo.ProductVersion -split '\+', 2)[0] -cne $env:APP_VERSION) { throw 'Wrong EXE version' }
           $p = Start-Process $exe -ArgumentList '--smoke-test' -PassThru
           if (-not $p.WaitForExit(20000)) {
             Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
