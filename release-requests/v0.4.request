@@ -1,0 +1,8 @@
+version=v0.4
+source=4603b1895d759adfea4b8743b3935424ebe957a8
+build_run=40418410925
+artifact_id=12696341057
+sha256=542a4d97a4a9132dcdc88bacb23b912cdbbe677d5d995821e123057b930c3009
+# v0.4 adds consistent dark WPF settings menus, Diagnostics styling, themed tray menu and expanded UI preview checks. It also carries private v0.3 monitoring, Bluetooth cache, input freshness and guarded disconnect improvements.
+# Public Windows CI passed 85 automated tests, WPF smoke and ZIP verification. This is an unsigned prerelease; the new UI and guarded disconnect still require physical acceptance.
+# Native lightbar hardware behavior, DS4Windows RGB ownership/restoration, Fn+Square and idle disconnect remain unverified or incomplete; native lighting defaults off.
