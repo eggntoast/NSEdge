@@ -49,8 +49,12 @@ public sealed class AppSettings
 public sealed class SettingsStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-    private readonly string path = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NSEdge", "settings.json");
+    private readonly string path;
+
+    public SettingsStore(string? filePath = null) => path = Path.GetFullPath(filePath ?? Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NSEdge", "settings.json"));
+
+    public event Action<string>? SaveFailed;
 
     public AppSettings Load()
     {
@@ -64,7 +68,7 @@ public sealed class SettingsStore
                     settings.NotificationSeconds = double.IsFinite(settings.NotificationSeconds)
                         ? Math.Clamp(settings.NotificationSeconds, 1, 10) : 2.5;
                     settings.LowBatteryThresholdPercent = Math.Clamp(
-                        (int)Math.Round(settings.LowBatteryThresholdPercent / 10.0) * 10, 10, 50);
+                        (int)Math.Round(Math.Clamp(settings.LowBatteryThresholdPercent, 10, 50) / 10.0) * 10, 10, 50);
                     if (!Enum.IsDefined(settings.LightingMode) || settings.LightingPalette() is null)
                         settings.NativeLightingEnabled = false;
                     return settings;
@@ -78,7 +82,7 @@ public sealed class SettingsStore
         return new AppSettings();
     }
 
-    public void Save(AppSettings settings)
+    public bool Save(AppSettings settings)
     {
         try
         {
@@ -86,10 +90,13 @@ public sealed class SettingsStore
             string temp = path + ".tmp";
             File.WriteAllText(temp, JsonSerializer.Serialize(settings, JsonOptions));
             File.Move(temp, path, overwrite: true);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.Write("Could not save settings: " + ex.Message);
+            SaveFailed?.Invoke(ex.Message);
+            return false;
         }
     }
 }

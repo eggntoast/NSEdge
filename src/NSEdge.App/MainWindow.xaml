@@ -11,7 +11,7 @@
     <StackPanel x:Name="ContentLayout" Margin="24,18,24,20">
       <Grid Height="48" Margin="0,0,0,18">
         <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="44"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="44"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
         <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource RaisedBrush}"
                 VerticalAlignment="Center" HorizontalAlignment="Left">
@@ -37,6 +37,15 @@
                        Foreground="{StaticResource SecondaryTextBrush}"/>
           </StackPanel>
         </Border>
+        <Button x:Name="SettingsGearButton" Grid.Column="3" Width="38" Height="38"
+                Style="{StaticResource ActionButtonStyle}"
+                Margin="10,0,0,0" VerticalAlignment="Center"
+                Content="⚙" FontFamily="Segoe UI Symbol" FontSize="21"
+                Foreground="{StaticResource PrimaryTextBrush}"
+                Background="{StaticResource RaisedBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" Cursor="Hand"
+                Click="OpenGearClick" ToolTip="NSEdge options"
+                AutomationProperties.Name="Open NSEdge options menu"/>
       </Grid>
 
       <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}"
@@ -105,7 +114,7 @@
       <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,15"/>
 
       <TextBlock Text="BATTERY" Style="{StaticResource EyebrowLabel}" Margin="0,0,0,6"/>
-      <Grid Height="66" Margin="0,0,0,11">
+      <Grid x:Name="BatterySection" Height="66" Margin="0,0,0,11">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <StackPanel VerticalAlignment="Center">
           <TextBlock Text="Battery alerts" Style="{StaticResource SettingLabel}"/>
@@ -118,31 +127,6 @@
       </Grid>
       <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,15"/>
 
-      <TextBlock Text="GENERAL" Style="{StaticResource EyebrowLabel}" Margin="0,0,0,6"/>
-      <Grid Height="62" Margin="0,0,0,14">
-        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <StackPanel VerticalAlignment="Center">
-          <TextBlock Text="Launch at startup" Style="{StaticResource SettingLabel}"/>
-          <TextBlock Text="Start minimized when you sign in" Style="{StaticResource SecondaryLabel}" Margin="0,4,0,0"/>
-        </StackPanel>
-        <ToggleButton Grid.Column="1" Name="AutostartCheck" Style="{StaticResource SettingToggleStyle}"
-                      AutomationProperties.Name="Launch NSEdge at Windows startup" VerticalAlignment="Center"
-                      Checked="AutostartChanged" Unchecked="AutostartChanged"/>
-      </Grid>
-      <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,14"/>
-
-      <Grid x:Name="FooterPanel" MinHeight="36">
-        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <TextBlock Name="VersionText" Text="v0.2.11 · NS" Style="{StaticResource SecondaryLabel}"
-                   VerticalAlignment="Center"/>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-          <Button Content="Refresh names" Style="{StaticResource ActionButtonStyle}" Margin="0,0,8,0"
-                  Click="RefreshClick" ToolTip="Update Sony profile names from the controller"
-                  AutomationProperties.Name="Refresh saved Sony profile names"/>
-          <Button Content="Show profile" Style="{StaticResource PrimaryButtonStyle}"
-                  Click="ShowCurrentClick" AutomationProperties.Name="Show active profile popup"/>
-        </StackPanel>
-      </Grid>
     </StackPanel>
   </ScrollViewer>
 </Window>

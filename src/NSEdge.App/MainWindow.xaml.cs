@@ -1,6 +1,11 @@
 using System.ComponentModel;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using ContextMenu = System.Windows.Controls.ContextMenu;
+using MenuItem = System.Windows.Controls.MenuItem;
+using Control = System.Windows.Controls.Control;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -18,10 +23,14 @@ public partial class MainWindow : Window
     private readonly Action refresh;
     private readonly Action lightingChanged;
     private readonly Func<string> lightingStatus;
+    private readonly Action showDiagnostics;
+    private readonly Action exit;
+    private ContextMenu? gearMenu;
+    private MenuItem? autostartItem;
     private bool initializing = true;
     private bool restoringAutostart;
 
-    public MainWindow(AppSettings settings, SettingsStore store, Action showCurrent, Action refresh, Action lightingChanged, Func<string> lightingStatus)
+    public MainWindow(AppSettings settings, SettingsStore store, Action showCurrent, Action refresh, Action lightingChanged, Func<string> lightingStatus, Action showDiagnostics, Action exit)
     {
         InitializeComponent();
         this.settings = settings;
@@ -30,39 +39,41 @@ public partial class MainWindow : Window
         this.refresh = refresh;
         this.lightingChanged = lightingChanged;
         this.lightingStatus = lightingStatus;
+        this.showDiagnostics = showDiagnostics;
+        this.exit = exit;
+        CreateGearMenu();
         NotificationsCheck.IsChecked = settings.ShowNotifications;
         DurationSlider.Value = settings.NotificationSeconds;
         DurationText.Text = $"{settings.NotificationSeconds:0.0} s";
-        try { AutostartCheck.IsChecked = StartupManager.IsEnabled(); }
-        catch (Exception ex) { Log.Write("Startup entry unavailable: " + ex.Message); }
-        VersionText.Text = $"v{typeof(App).Assembly.GetName().Version?.ToString(3)}  ·  NS";
         initializing = false;
         UpdateLightingStatus();
     }
 
-    public void SetStatus(EdgeStatus status)
+    public void SetStatus(EdgeStatus status, bool inputFresh = true)
     {
         bool connected = status.Connected;
+        bool stale = connected && !inputFresh;
         bool unavailable = !connected &&
             (status.Detail.Contains("unavailable", StringComparison.OrdinalIgnoreCase) ||
              status.Detail.Contains("unsupported", StringComparison.OrdinalIgnoreCase) ||
              status.Detail.Contains("not found", StringComparison.OrdinalIgnoreCase));
-        ConnectionBadgeText.Text = connected ? "Connected" : unavailable ? "Unavailable" : "Searching";
-        StatusDot.Fill = (System.Windows.Media.Brush)FindResource(connected ? "OnlineBrush" : "OfflineBrush");
-        ConnectionBadgeText.Foreground = (System.Windows.Media.Brush)FindResource(connected ? "OnlineBrush" : "SecondaryTextBrush");
-        ConnectionText.Text = connected
-            ? status.Transport == EdgeTransport.Bluetooth ? "DualSense Edge  ·  Bluetooth" : "DualSense Edge  ·  USB"
+        ConnectionBadgeText.Text = stale ? "Input stale" : connected ? "Connected" : unavailable ? "Unavailable" : "Searching";
+        StatusDot.Fill = (System.Windows.Media.Brush)FindResource(connected && !stale ? "OnlineBrush" : "OfflineBrush");
+        ConnectionBadgeText.Foreground = (System.Windows.Media.Brush)FindResource(connected && !stale ? "OnlineBrush" : "SecondaryTextBrush");
+        ConnectionText.Text = stale ? "Controller connected · Input not recently verified"
+            : connected ? status.Transport == EdgeTransport.Bluetooth ? "DualSense Edge  ·  Bluetooth" : "DualSense Edge  ·  USB"
             : status.Detail;
         ProfileText.ToolTip = status.NamesFromUsbCache
             ? "Saved Sony profile name from the last USB connection."
             : null;
-        ProfileText.Text = status.Profile == EdgeProfile.Unknown
+        ProfileText.Text = stale ? "Profile unavailable"
+            : status.Profile == EdgeProfile.Unknown
             ? connected && status.Transport == EdgeTransport.Bluetooth
                 ? "Profile unavailable"
                 : connected ? "Waiting for input" : "No active profile"
             : status.Names.DisplayName(status.Profile);
-        ShortcutText.Text = status.Profile == EdgeProfile.Unknown ? "—" : EdgeProfileDecoder.Shortcut(status.Profile);
-        BatteryText.Text = status.Connected
+        ShortcutText.Text = stale || status.Profile == EdgeProfile.Unknown ? "—" : EdgeProfileDecoder.Shortcut(status.Profile);
+        BatteryText.Text = status.Connected && !stale
             ? "Battery: " + status.Battery.Description
             : "Battery unavailable";
     }
@@ -136,15 +147,20 @@ public partial class MainWindow : Window
         UpdateLayout();
         if (ResizeMode != ResizeMode.NoResize || SizeToContent != SizeToContent.Height)
             throw new InvalidOperationException("Settings window sizing is not fixed to measured content.");
-        if (FooterPanel.ActualHeight < 30 || ContentLayout.ActualWidth < 300)
-            throw new InvalidOperationException("Settings content has not been measured correctly.");
-        // Compact desktops may scroll; the footer must remain reachable without clipping.
+        if (SettingsGearButton.ActualWidth < 30 || ContentLayout.ActualWidth < 300 ||
+            gearMenu is null || autostartItem is null || gearMenu.Items.Count != 8 ||
+            gearMenu.Style != FindResource("EdgeOptionsMenuStyle") ||
+            !menuStyleApplied())
+            throw new InvalidOperationException("Compact options menu has not been initialized.");
+        bool menuStyleApplied() => (Style)gearMenu.Resources[typeof(MenuItem)] ==
+            FindResource("EdgeOptionsMenuItemStyle");
+        // Compact desktops may scroll; the battery options must stay reachable.
         ContentViewport.ScrollToEnd();
         UpdateLayout();
-        System.Windows.Point footerEnd = FooterPanel.TranslatePoint(
-            new System.Windows.Point(0, FooterPanel.ActualHeight), ContentViewport);
-        if (footerEnd.Y > ContentViewport.ActualHeight + 1)
-            throw new InvalidOperationException("Settings footer is not reachable.");
+        System.Windows.Point batteryEnd = BatterySection.TranslatePoint(
+            new System.Windows.Point(0, BatterySection.ActualHeight), ContentViewport);
+        if (batteryEnd.Y > ContentViewport.ActualHeight + 1)
+            throw new InvalidOperationException("Battery settings are not reachable.");
         ContentViewport.ScrollToTop();
         UpdateLayout();
         if (Icon is null)
@@ -161,19 +177,79 @@ public partial class MainWindow : Window
         store.Save(settings);
     }
 
+    private void CreateGearMenu()
+    {
+        var menu = new ContextMenu
+        {
+            Style = (Style)FindResource("EdgeOptionsMenuStyle"),
+            Placement = PlacementMode.Bottom,
+            PlacementTarget = SettingsGearButton,
+            HorizontalOffset = -190
+        };
+        menu.Resources.Add(typeof(MenuItem), FindResource("EdgeOptionsMenuItemStyle"));
+        menu.Resources.Add(typeof(Separator), FindResource("EdgeOptionsMenuSeparatorStyle"));
+
+        void Add(string label, Action action)
+        {
+            var item = new MenuItem { Header = label };
+            item.Click += (_, _) => action();
+            menu.Items.Add(item);
+        }
+
+        Add("Show profile", showCurrent);
+        Add("Refresh names", refresh);
+        menu.Items.Add(new Separator { Style = (Style)FindResource("EdgeOptionsMenuSeparatorStyle") });
+        autostartItem = new MenuItem { Header = "Launch at startup", IsCheckable = true };
+        autostartItem.Click += AutostartChanged;
+        menu.Items.Add(autostartItem);
+        Add("Diagnostics", showDiagnostics);
+        Add("About NSEdge", ShowAbout);
+        menu.Items.Add(new Separator { Style = (Style)FindResource("EdgeOptionsMenuSeparatorStyle") });
+        Add("Exit NSEdge", exit);
+        gearMenu = menu;
+        SettingsGearButton.ContextMenu = menu;
+    }
+
+    // The smoke test opens the real popup, not an inert menu model.
+    public ContextMenu OpenOptionsForSmoke()
+    {
+        OpenGearClick(this, new RoutedEventArgs());
+        return gearMenu ?? throw new InvalidOperationException("Options menu missing.");
+    }
+
+    private void OpenGearClick(object sender, RoutedEventArgs e)
+    {
+        if (gearMenu is null) return;
+        if (autostartItem is not null)
+        {
+            try { autostartItem.IsChecked = StartupManager.IsEnabled(); }
+            catch (Exception ex) { Log.Write("Startup entry unavailable: " + ex.GetType().Name); }
+        }
+        gearMenu.IsOpen = true;
+    }
+
+    private void ShowAbout()
+    {
+        string version = typeof(App).Assembly.GetName().Version?.ToString(2) ?? "unknown";
+        System.Windows.MessageBox.Show(this,
+            $"NSEdge v{version}\nSony DualSense Edge companion\n\nNS · MIT licensed",
+            "About NSEdge", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
     private void AutostartChanged(object sender, RoutedEventArgs e)
     {
-        if (initializing || restoringAutostart)
+        if (initializing || restoringAutostart || autostartItem is null)
             return;
-        try { StartupManager.SetEnabled(AutostartCheck.IsChecked == true); }
+        try { StartupManager.SetEnabled(autostartItem.IsChecked); }
         catch (Exception ex)
         {
-            Log.Write("Could not change startup entry: " + ex);
+            Log.Write("Could not change startup entry: " + ex.GetType().Name);
             restoringAutostart = true;
-            try { AutostartCheck.IsChecked = StartupManager.IsEnabled(); }
-            catch { AutostartCheck.IsChecked = false; }
+            try { autostartItem.IsChecked = StartupManager.IsEnabled(); }
+            catch { autostartItem.IsChecked = false; }
             finally { restoringAutostart = false; }
-            System.Windows.MessageBox.Show(this, ex.Message, "Windows startup", MessageBoxButton.OK, MessageBoxImage.Warning);
+            System.Windows.MessageBox.Show(this, "Could not update Windows startup settings.",
+                "Windows startup", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -192,9 +268,6 @@ public partial class MainWindow : Window
         }, lightingStatus) { Owner = this }.ShowDialog();
         UpdateLightingStatus();
     }
-
-    private void ShowCurrentClick(object sender, RoutedEventArgs e) => showCurrent();
-    private void RefreshClick(object sender, RoutedEventArgs e) => refresh();
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
