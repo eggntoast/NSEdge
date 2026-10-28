@@ -1,7 +1,0 @@
-<Solution>
-  <Project Path="src/NSEdge.Core/NSEdge.Core.csproj" />
-  <Project Path="src/NSEdge.Windows/NSEdge.Windows.csproj" />
-  <Project Path="src/NSEdge.App/NSEdge.App.csproj" />
-  <Project Path="tests/NSEdge.Tests/NSEdge.Tests.csproj" />
-  <Project Path="tests/NSEdge.IpcTests/NSEdge.IpcTests.csproj" />
-</Solution>

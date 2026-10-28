@@ -1,8 +1,0 @@
-version=v0.2.10
-source=f44359134d30b1a77fd5fb687d1e7052a95aec4a
-build_run=39935291480
-artifact_id=12493482290
-sha256=e39c2e1bf62ce9ace8cfa0d39bcbf0ffee6bf91543a40e03586104e0d804aed4
-# Native RGB software fixes: failed or partial HID writes are retryable; battery gradients handle a 100% medium threshold. 38 protocol tests passed.
-# Standalone opt-in native lighting remains disabled by default. No new HID report format; DS4Windows is optional.
-# Experimental unsigned Windows 11 x64 prerelease. Physical USB/Bluetooth light changes, restoration and controller-manager handoff are not verified.
